@@ -37,12 +37,15 @@ BINARY_URL="https://github.com/${REPO}/releases/latest/download/statix-linux-${A
 CHECKSUM_URL="${BINARY_URL}.sha256"
 
 echo "==> Downloading latest binary from ${BINARY_URL}..."
-if ! curl -sSL "${BINARY_URL}" -o "${TMP_DIR}/statix"; then
-  echo "Warning: Download from release failed (possibly dev build). Checking local bin/ or fallback..."
-  if [ -f "./bin/statix-linux-${ARCH}" ]; then
+if ! curl -fsSL "${BINARY_URL}" -o "${TMP_DIR}/statix"; then
+  echo "Warning: Download from GitHub release failed (no release tag published yet or 404)." >&2
+  if command -v go >/dev/null 2>&1; then
+    echo "==> Compiling Statix binary locally with Go..."
+    CGO_ENABLED=0 go build -o "${TMP_DIR}/statix" ./cmd/statix/
+  elif [ -f "./bin/statix-linux-${ARCH}" ]; then
     cp "./bin/statix-linux-${ARCH}" "${TMP_DIR}/statix"
   else
-    echo "Error: Could not obtain Statix binary." >&2
+    echo "Error: Could not obtain Statix binary. No GitHub release found and Go is not installed." >&2
     exit 1
   fi
 fi
