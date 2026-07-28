@@ -1,0 +1,227 @@
+{{define "title"}}Dashboard — Statix{{end}}
+{{define "content"}}
+<div x-data="dashboardApp()" x-init="initWS()">
+  {{if not .TLSEnabled}}
+  <div class="banner banner-warning">
+    <span><strong>HTTPS Not Active:</strong> Statix is currently running in HTTP-only mode. Bind a domain in settings to enable automatic TLS.</span>
+    <a href="/settings/domain" class="btn btn-secondary" style="font-size:0.75rem; padding:0.25rem 0.5rem;">Configure Domain</a>
+  </div>
+  {{end}}
+
+  <div class="grid-3" style="margin-bottom: 1.5rem;">
+    <!-- CPU Overview -->
+    <div class="stat-box">
+      <div class="stat-label">CPU Usage (Total)</div>
+      <div class="stat-value" x-text="cpuTotalPct + '%'">0.0%</div>
+      <div class="progress-bar">
+        <div class="progress-fill" :style="'width: ' + cpuTotalPct + '%'"></div>
+      </div>
+    </div>
+
+    <!-- RAM Overview -->
+    <div class="stat-box">
+      <div class="stat-label">RAM Usage</div>
+      <div class="stat-value" x-text="ramUsedFormatted + ' / ' + ramTotalFormatted">0 B / 0 B</div>
+      <div class="progress-bar">
+        <div class="progress-fill" :style="'width: ' + ramPct + '%'"></div>
+      </div>
+    </div>
+
+    <!-- Load Average -->
+    <div class="stat-box">
+      <div class="stat-label">Load Average (1 / 5 / 15 min)</div>
+      <div class="stat-value" x-text="loadAvg">0.00 / 0.00 / 0.00</div>
+    </div>
+  </div>
+
+  <!-- Real-time Charts -->
+  <div class="grid-2" style="margin-bottom: 1.5rem;">
+    <div class="card">
+      <div class="card-title">CPU Utilization (%)</div>
+      <div id="chart-cpu" style="width:100%; height:200px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">RAM Usage (%)</div>
+      <div id="chart-ram" style="width:100%; height:200px;"></div>
+    </div>
+  </div>
+
+  <!-- Network Interfaces & Disks -->
+  <div class="grid-2" style="margin-bottom: 1.5rem;">
+    <div class="card">
+      <div class="card-title">Network Throughput</div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Interface</th>
+            <th>RX Rate</th>
+            <th>TX Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="net in snapshot.networks" :key="net.interface">
+            <tr>
+              <td x-text="net.interface"></td>
+              <td x-text="formatBytes(net.rx_bps) + '/s'"></td>
+              <td x-text="formatBytes(net.tx_bps) + '/s'"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Disk Storage & I/O</div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>Used %</th>
+            <th>Read</th>
+            <th>Write</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="disk in snapshot.disks" :key="disk.device">
+            <tr>
+              <td x-text="disk.device"></td>
+              <td x-text="disk.used_pct.toFixed(1) + '%'"></td>
+              <td x-text="formatBytes(disk.read_bps) + '/s'"></td>
+              <td x-text="formatBytes(disk.write_bps) + '/s'"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Top Processes -->
+  <div class="card">
+    <div class="card-title">Top Processes (CPU / RAM)</div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>PID</th>
+          <th>Name</th>
+          <th>State</th>
+          <th>CPU %</th>
+          <th>RSS (RAM)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="proc in snapshot.processes" :key="proc.pid">
+          <tr>
+            <td x-text="proc.pid"></td>
+            <td x-text="proc.name" style="font-weight:600;"></td>
+            <td x-text="proc.state"></td>
+            <td x-text="proc.cpu_pct.toFixed(1) + '%'"></td>
+            <td x-text="formatBytes(proc.rss_kb * 1024)"></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function dashboardApp() {
+  return {
+    snapshot: { cpu: [], load_avg: [0,0,0], networks: [], disks: [], processes: [] },
+    cpuTotalPct: '0.0',
+    ramPct: '0.0',
+    ramUsedFormatted: '0 B',
+    ramTotalFormatted: '0 B',
+    loadAvg: '0.00 / 0.00 / 0.00',
+    ws: null,
+    cpuChart: null,
+    ramChart: null,
+    chartDataCPU: [[], []],
+    chartDataRAM: [[], []],
+
+    formatBytes(bytes) {
+      if (!bytes || bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    },
+
+    initCharts() {
+      const optsCPU = {
+        title: "",
+        width: document.getElementById('chart-cpu').offsetWidth || 500,
+        height: 200,
+        series: [
+          {},
+          { label: "CPU %", stroke: "#38bdf8", fill: "rgba(56, 189, 248, 0.1)" }
+        ],
+        scales: { y: { range: [0, 100] } }
+      };
+      const optsRAM = {
+        title: "",
+        width: document.getElementById('chart-ram').offsetWidth || 500,
+        height: 200,
+        series: [
+          {},
+          { label: "RAM %", stroke: "#22c55e", fill: "rgba(34, 197, 94, 0.1)" }
+        ],
+        scales: { y: { range: [0, 100] } }
+      };
+
+      this.cpuChart = new uPlot(optsCPU, [[], []], document.getElementById('chart-cpu'));
+      this.ramChart = new uPlot(optsRAM, [[], []], document.getElementById('chart-ram'));
+    },
+
+    initWS() {
+      this.initCharts();
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      this.ws = new WebSocket(proto + '//' + window.location.host + '/ws');
+
+      this.ws.onmessage = (evt) => {
+        const data = JSON.parse(evt.data);
+        this.snapshot = data;
+
+        if (data.cpu && data.cpu.length > 0) {
+          const total = data.cpu.find(c => c.core === -1);
+          if (total) this.cpuTotalPct = total.percent.toFixed(1);
+        }
+
+        if (data.load_avg) {
+          this.loadAvg = data.load_avg.map(v => v.toFixed(2)).join(' / ');
+        }
+
+        if (data.mem_total > 0) {
+          this.ramUsedFormatted = this.formatBytes(data.mem_used);
+          this.ramTotalFormatted = this.formatBytes(data.mem_total);
+          this.ramPct = ((data.mem_used / data.mem_total) * 100).toFixed(1);
+        }
+
+        // Push to uPlot series
+        const ts = Math.floor(new Date(data.collected_at).getTime() / 1000);
+        this.chartDataCPU[0].push(ts);
+        this.chartDataCPU[1].push(parseFloat(this.cpuTotalPct));
+
+        this.chartDataRAM[0].push(ts);
+        this.chartDataRAM[1].push(parseFloat(this.ramPct));
+
+        // Keep last 60 points in chart
+        if (this.chartDataCPU[0].length > 60) {
+          this.chartDataCPU[0].shift();
+          this.chartDataCPU[1].shift();
+          this.chartDataRAM[0].shift();
+          this.chartDataRAM[1].shift();
+        }
+
+        this.cpuChart.setData(this.chartDataCPU);
+        this.ramChart.setData(this.chartDataRAM);
+      };
+
+      this.ws.onclose = () => {
+        setTimeout(() => this.initWS(), 3000);
+      };
+    }
+  };
+}
+</script>
+{{end}}

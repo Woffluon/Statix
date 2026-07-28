@@ -1,0 +1,40 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{.CSRFToken}}">
+  <title>{{block "title" .}}Statix System Monitor{{end}}</title>
+  <link rel="stylesheet" href="/static/css/uplot.min.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="/static/js/htmx.min.js"></script>
+  <script src="/static/js/uplot.min.js"></script>
+  <script defer src="/static/js/alpine.min.js"></script>
+</head>
+<body>
+  {{if .ShowHeader}}
+  <header class="header">
+    <div class="brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+      </svg>
+      Statix
+    </div>
+    <nav class="nav-links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/settings/domain">Domain & TLS</a>
+      <form action="/logout" method="POST" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <button type="submit" class="btn btn-secondary" style="padding:0.35rem 0.75rem; font-size:0.875rem;">Logout</button>
+      </form>
+    </nav>
+  </header>
+  {{end}}
+
+  <main class="container">
+    {{template "content" .}}
+  </main>
+</body>
+</html>
+{{end}}

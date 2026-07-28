@@ -1,0 +1,42 @@
+{{define "title"}}Domain & TLS Settings — Statix{{end}}
+{{define "content"}}
+<div class="card center-card" style="max-width: 600px;">
+  <div class="card-title">
+    Domain & Automatic HTTPS Settings
+  </div>
+
+  <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">
+    Bind your domain name to issue Let's Encrypt TLS certificates automatically. Statix will handle ACME HTTP-01 challenges and port 80 -> 443 redirects without a separate web server.
+  </p>
+
+  {{if .TLSEnabled}}
+  <div class="banner banner-info" style="margin-bottom: 1.5rem;">
+    <div>
+      <strong>TLS Active:</strong> Served securely over HTTPS at <strong>https://{{.Domain}}</strong>
+    </div>
+    <span class="badge badge-success">ACTIVE</span>
+  </div>
+  {{else}}
+  <div class="banner banner-warning" style="margin-bottom: 1.5rem;">
+    <div>
+      <strong>TLS Inactive:</strong> Running in local HTTP mode.
+    </div>
+    <span class="badge badge-warning">HTTP ONLY</span>
+  </div>
+  {{end}}
+
+  <form action="/settings/domain" method="POST">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+    <div class="form-group">
+      <label class="form-label" for="domain">Domain Name</label>
+      <input type="text" id="domain" name="domain" class="form-input" placeholder="monitor.example.com" value="{{.Domain}}" required>
+      <span style="font-size: 0.75rem; color: var(--text-muted);">Ensure your domain's A/AAAA DNS records point to this server's public IP before binding.</span>
+    </div>
+
+    <button type="submit" class="btn" style="width: 100%; justify-content: center;">
+      Bind Domain & Enable HTTPS
+    </button>
+  </form>
+</div>
+{{end}}

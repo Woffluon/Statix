@@ -1,0 +1,66 @@
+{{define "title"}}Setup Wizard — Statix{{end}}
+{{define "content"}}
+<div class="card center-card" style="max-width: 550px;">
+  <div class="card-title" style="justify-content: center; font-size: 1.5rem; margin-bottom: 0.5rem;">
+    Initial Setup Wizard
+  </div>
+  <p style="color: var(--text-muted); text-align: center; margin-bottom: 1.5rem; font-size: 0.875rem;">
+    Configure your admin credentials and server settings to initialize Statix.
+  </p>
+
+  {{if .Error}}
+  <div class="banner banner-danger">
+    {{.Error}}
+  </div>
+  {{end}}
+
+  <form action="/setup" method="POST">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+    <div class="card" style="background-color: var(--bg-color); margin-bottom: 1rem;">
+      <h3 style="font-size: 1rem; margin-bottom: 1rem; color: var(--accent);">Step 1: Admin Account</h3>
+      
+      <div class="form-group">
+        <label class="form-label" for="username">Admin Username</label>
+        <input type="text" id="username" name="username" class="form-input" value="{{.Username}}" required>
+        {{if .UsernameError}}<div class="form-error">{{.UsernameError}}</div>{{end}}
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Password (min 8 chars)</label>
+        <input type="password" id="password" name="password" class="form-input" required>
+        {{if .PasswordError}}<div class="form-error">{{.PasswordError}}</div>{{end}}
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="confirm_password">Confirm Password</label>
+        <input type="password" id="confirm_password" name="confirm_password" class="form-input" required>
+      </div>
+    </div>
+
+    <div class="card" style="background-color: var(--bg-color); margin-bottom: 1rem;">
+      <h3 style="font-size: 1rem; margin-bottom: 1rem; color: var(--accent);">Step 2: Server Listening Port</h3>
+      
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="listen_addr">Listen Address</label>
+        <input type="text" id="listen_addr" name="listen_addr" class="form-input" value="{{if .ListenAddr}}{{.ListenAddr}}{{else}}:8080{{end}}" required>
+        <span style="font-size:0.75rem; color:var(--text-muted);">Default is :8080</span>
+      </div>
+    </div>
+
+    <div class="card" style="background-color: var(--bg-color); margin-bottom: 1.5rem;">
+      <h3 style="font-size: 1rem; margin-bottom: 1rem; color: var(--accent);">Step 3: Optional Domain Binding</h3>
+      
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="domain">Domain Name (optional)</label>
+        <input type="text" id="domain" name="domain" class="form-input" placeholder="monitor.example.com" value="{{.Domain}}">
+        <span style="font-size:0.75rem; color:var(--text-muted);">Leave empty to skip domain binding for now.</span>
+      </div>
+    </div>
+
+    <button type="submit" class="btn" style="width: 100%; justify-content: center;">
+      Complete Setup & Sign In
+    </button>
+  </form>
+</div>
+{{end}}
