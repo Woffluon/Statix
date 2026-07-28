@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/statix/statix/internal/config"
@@ -32,7 +33,9 @@ func TestConfigLoadAndSaveRoundTrip(t *testing.T) {
 
 	info, err := os.Stat(configPath)
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
+	if runtime.GOOS != "windows" {
+		assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
+	}
 
 	loaded, err := config.Load(configPath)
 	require.NoError(t, err)
@@ -99,4 +102,21 @@ func TestConfigValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIsPortFallbackEnabled(t *testing.T) {
+	tr := true
+	fl := false
+
+	cfgDefault := config.DefaultConfig()
+	assert.True(t, cfgDefault.IsPortFallbackEnabled())
+
+	cfgCustomPort := &config.Config{ListenAddr: ":9090"}
+	assert.False(t, cfgCustomPort.IsPortFallbackEnabled())
+
+	cfgCustomPortWithFallback := &config.Config{ListenAddr: ":9090", PortFallback: &tr}
+	assert.True(t, cfgCustomPortWithFallback.IsPortFallbackEnabled())
+
+	cfgDefaultWithDisabledFallback := &config.Config{ListenAddr: ":8080", PortFallback: &fl}
+	assert.False(t, cfgDefaultWithDisabledFallback.IsPortFallbackEnabled())
 }

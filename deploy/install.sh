@@ -97,3 +97,5 @@ systemctl restart statix
 
 echo "==> Statix installation complete!"
 echo "==> Access the setup wizard at http://<your-server-ip>:8080"
+echo "==> (If port 8080 was busy, Statix automatically bound to the next free port."
+echo "==>  Check active port with: journalctl -u statix -n 20)"

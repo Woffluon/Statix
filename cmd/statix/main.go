@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -20,6 +23,49 @@ import (
 )
 
 var version = "dev"
+
+func bindListener(listenAddr string, allowFallback bool, maxTries int) (net.Listener, string, bool, error) {
+	host, portStr, err := net.SplitHostPort(listenAddr)
+	if err != nil {
+		if len(listenAddr) > 0 && listenAddr[0] == ':' {
+			host = ""
+			portStr = listenAddr[1:]
+		} else {
+			ln, err := net.Listen("tcp", listenAddr)
+			if err != nil {
+				return nil, "", false, err
+			}
+			return ln, listenAddr, false, nil
+		}
+	}
+
+	startPort, err := strconv.Atoi(portStr)
+	if err != nil {
+		ln, err := net.Listen("tcp", listenAddr)
+		if err != nil {
+			return nil, "", false, err
+		}
+		return ln, listenAddr, false, nil
+	}
+
+	var lastErr error
+	tries := 1
+	if allowFallback {
+		tries = maxTries
+	}
+
+	for i := 0; i < tries; i++ {
+		targetPort := startPort + i
+		targetAddr := fmt.Sprintf("%s:%d", host, targetPort)
+		ln, err := net.Listen("tcp", targetAddr)
+		if err == nil {
+			return ln, targetAddr, i > 0, nil
+		}
+		lastErr = err
+	}
+
+	return nil, "", false, fmt.Errorf("failed to bind on %s (tried %d ports): %w", listenAddr, tries, lastErr)
+}
 
 func main() {
 	configPathFlag := flag.String("config", "/etc/statix/config.yaml", "path to config file")
@@ -49,6 +95,23 @@ func main() {
 			logger.Error("failed to load configuration", "error", err)
 			os.Exit(1)
 		}
+	}
+
+	// Bind TCP listener cleanly with port fallback if enabled
+	ln, actualAddr, fallbackUsed, err := bindListener(cfg.ListenAddr, cfg.IsPortFallbackEnabled(), 10)
+	if err != nil {
+		logger.Error("failed to bind TCP listener", "requested_addr", cfg.ListenAddr, "error", err)
+		os.Exit(1)
+	}
+
+	if fallbackUsed {
+		logger.Warn("requested port was busy; dynamically bound to fallback port",
+			"requested_addr", cfg.ListenAddr,
+			"bound_addr", actualAddr,
+		)
+		cfg.ListenAddr = actualAddr
+	} else {
+		logger.Info("http server socket bound successfully", "addr", actualAddr)
 	}
 
 	// Override log format if specified in env/flag
@@ -89,6 +152,7 @@ func main() {
 		Logger:     logger,
 	})
 	if err != nil {
+		_ = ln.Close()
 		logger.Error("failed to initialize web server", "error", err)
 		os.Exit(1)
 	}
@@ -109,7 +173,7 @@ func main() {
 
 	// HTTP Server configuration
 	httpServer := &http.Server{
-		Addr:         cfg.ListenAddr,
+		Addr:         actualAddr,
 		Handler:      server,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
@@ -121,8 +185,8 @@ func main() {
 	defer stopSignal()
 
 	go func() {
-		logger.Info("http server listening", "addr", cfg.ListenAddr)
-		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		logger.Info("http server listening", "addr", actualAddr)
+		if err := httpServer.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("http server listening error", "error", err)
 			os.Exit(1)
 		}

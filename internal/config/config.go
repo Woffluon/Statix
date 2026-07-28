@@ -11,6 +11,7 @@ import (
 
 type Config struct {
 	ListenAddr             string `yaml:"listen_addr"`
+	PortFallback           *bool  `yaml:"port_fallback,omitempty"`
 	Domain                 string `yaml:"domain"`
 	TLSEnabled             bool   `yaml:"tls_enabled"`
 	AdminUsername          string `yaml:"admin_username"`
@@ -20,6 +21,14 @@ type Config struct {
 	CollectIntervalSeconds int    `yaml:"collect_interval_seconds"`
 	HistoryDurationHours   int    `yaml:"history_duration_hours"`
 	LogFormat              string `yaml:"log_format"`
+}
+
+// IsPortFallbackEnabled returns true if port fallback to adjacent ports is allowed when busy.
+func (c *Config) IsPortFallbackEnabled() bool {
+	if c.PortFallback != nil {
+		return *c.PortFallback
+	}
+	return strings.HasSuffix(c.ListenAddr, ":8080")
 }
 
 // DefaultConfig returns sensible default settings.
