@@ -122,9 +122,12 @@ func (s *Server) registerRoutes() {
 	r.Use(auth.Recover(s.logger))
 	r.Use(auth.SecurityHeaders)
 
-	// Static assets
+	// Static assets & Favicon
 	fileServer := http.FileServer(http.FS(staticFS))
 	r.Handle("/static/*", fileServer)
+	r.Get("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/static/assets/logo.png", http.StatusMovedPermanently)
+	})
 
 	// Public health probe
 	r.Get("/healthz", s.handleHealthzGet)
