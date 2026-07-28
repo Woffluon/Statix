@@ -97,7 +97,7 @@ func parseUptime(r io.Reader) (float64, error) {
 	if len(fields) == 0 {
 		return 0, fmt.Errorf("empty uptime")
 	}
-	return strconv.ParseFloat(fields[0], 10)
+	return strconv.ParseFloat(fields[0], 64)
 }
 
 func collectProcesses(procRoot string, prevCPU map[int]procCPURaw, _ float64, nowSec float64, topN int) ([]ProcessStat, map[int]procCPURaw, error) {

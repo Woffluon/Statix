@@ -84,10 +84,10 @@ func computeDiskIO(prev, curr []diskRaw, interval time.Duration, sfn statfsFunc)
 		var readBps, writeBps float64
 		if p, ok := prevMap[c.Device]; ok {
 			if c.SectorsRead >= p.SectorsRead {
-				readBps = float64((c.SectorsRead - p.SectorsRead) * 512) / secs
+				readBps = float64((c.SectorsRead-p.SectorsRead)*512) / secs
 			}
 			if c.SectorsWritten >= p.SectorsWritten {
-				writeBps = float64((c.SectorsWritten - p.SectorsWritten) * 512) / secs
+				writeBps = float64((c.SectorsWritten-p.SectorsWritten)*512) / secs
 			}
 		}
 

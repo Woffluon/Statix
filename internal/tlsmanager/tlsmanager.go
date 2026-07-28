@@ -62,8 +62,8 @@ type Manager struct {
 	events chan TLSEvent
 	Events <-chan TLSEvent
 
-	mu            sync.Mutex
-	magicConfig   *certmagic.Config
+	mu           sync.Mutex
+	magicConfig  *certmagic.Config
 	activeDomain string
 }
 
