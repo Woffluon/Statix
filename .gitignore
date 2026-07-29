@@ -1,0 +1,39 @@
+# Binaries & Build Outputs
+bin/
+dist/
+build/
+site/
+.netlify/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Statix Runtime Config & Certificates
+config.yaml
+*.pem
+*.key
+*.crt
+certs/
+
+# Go Test & Profiling Artifacts
+*.test
+*.prof
+*.out
+coverage.txt
+coverage.out
+
+# IDE & Editor Files
+.agents
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.bak
+
+# OS Junk Files
+.DS_Store
+Thumbs.db
+desktop.ini

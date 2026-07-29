@@ -1,0 +1,32 @@
+{{define "title"}}Login — Statix{{end}}
+{{define "content"}}
+<div class="card center-card">
+  <div class="card-title" style="justify-content: center; font-size: 1.5rem; margin-bottom: 1.5rem;">
+    Sign In to Statix
+  </div>
+
+  {{if .Error}}
+  <div class="banner banner-danger" style="margin-bottom: 1.25rem;">
+    {{.Error}}
+  </div>
+  {{end}}
+
+  <form action="/login" method="POST">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+    <div class="form-group">
+      <label class="form-label" for="username">Username</label>
+      <input type="text" id="username" name="username" class="form-input" required autofocus autocomplete="username">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="password">Password</label>
+      <input type="password" id="password" name="password" class="form-input" required autocomplete="current-password">
+    </div>
+
+    <button type="submit" class="btn" style="width: 100%; justify-content: center; margin-top: 1rem;">
+      Sign In
+    </button>
+  </form>
+</div>
+{{end}}

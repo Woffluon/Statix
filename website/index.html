@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statix — Ultra-Fast, Single-Binary Linux System Monitor</title>
+  <meta name="description" content="Statix is a self-hosted, single-binary Linux system resource monitor. Real-time SSR dashboard &amp; WebSocket metrics directly parsed from /proc and /sys.">
+
+  <!-- OpenGraph SEO -->
+  <meta property="og:title" content="Statix — Self-Hosted Linux System Resource Monitor">
+  <meta property="og:description" content="Single binary Linux monitor. Zero agent dependencies. Embedded dashboard with Let's Encrypt TLS and Argon2id security.">
+  <meta property="og:type" content="website">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="shortcut icon" href="assets/logo.png">
+
+  <link rel="stylesheet" href="css/style.css">
+  <script defer src="js/main.js"></script>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+
+  <div class="wrapper">
+    <!-- Header / Navigation -->
+    <header class="nav-header">
+      <div class="nav-container">
+        <a href="#" class="logo">
+          <img src="assets/logo.png" alt="Statix Logo" class="logo-img">
+          Statix
+        </a>
+
+        <ul class="nav-links">
+          <li><a href="#demo" class="nav-link">Live Demo</a></li>
+          <li><a href="#features" class="nav-link">Features</a></li>
+          <li><a href="#architecture" class="nav-link">Architecture</a></li>
+          <li><a href="#downloads" class="nav-link">Downloads</a></li>
+          <li>
+            <a href="https://github.com/Woffluon/Statix" target="_blank" rel="noopener" class="btn btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+              </svg>
+              GitHub
+            </a>
+          </li>
+        </ul>
+      </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="container">
+        <h1 class="hero-title">
+          Real-Time Linux System Monitoring. <span class="text-gradient">Zero Dependencies.</span>
+        </h1>
+
+        <p class="hero-subtitle">
+          Statix parses Linux kernel <code>/proc</code> and <code>/sys</code> interfaces directly. Delivered as a single 18 MB binary with server-side rendered HTML dashboard, Argon2id security, and Docker container support.
+        </p>
+
+        <!-- Quick Install Terminal Widget -->
+        <div class="install-box">
+          <div class="install-cmd">
+            <span class="prompt">$</span> curl -sSL https://raw.githubusercontent.com/Woffluon/Statix/main/deploy/install.sh | sudo bash
+          </div>
+          <button id="copyBtn" class="copy-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            Copy
+          </button>
+        </div>
+
+        <div class="hero-cta">
+          <a href="#demo" class="btn btn-primary">View Live Demo</a>
+          <a href="#downloads" class="btn btn-secondary">Download Binary</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive Live Demo Section -->
+    <section id="demo" class="demo-section">
+      <div class="container">
+        <h2 class="section-title">Interactive Dashboard Preview</h2>
+        <p class="section-desc">Simulated real-time WebSocket metric stream pushed directly from Statix core.</p>
+
+        <div class="demo-window">
+          <div class="window-header">
+            <div class="window-dots">
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+            </div>
+            <div class="window-title">https://monitor.example.com/dashboard</div>
+            <div style="width: 40px;"></div>
+          </div>
+
+          <div class="demo-content">
+            <div class="demo-tabs">
+              <button class="tab-btn active" data-view="overview">System Overview</button>
+              <button class="tab-btn" data-view="processes">Top Processes</button>
+              <button class="tab-btn" data-view="network">Network &amp; Disks</button>
+            </div>
+
+            <!-- View 1: Overview -->
+            <div id="view-overview" class="demo-view">
+              <div class="grid-3" style="margin-bottom: 1.5rem;">
+
+                <div class="stat-box stat-box--cpu" data-metric="cpu" title="Click for per-core details">
+                  <span class="stat-hint">↗ details</span>
+                  <div class="stat-label">CPU Usage (Total)</div>
+                  <div id="val-cpu" class="stat-value">18.4%</div>
+                  <div class="progress-track">
+                    <div id="bar-cpu" class="progress-fill progress-fill--cpu" style="width: 18.4%;"></div>
+                  </div>
+                </div>
+
+                <div class="stat-box stat-box--ram" data-metric="ram" title="Click for memory breakdown">
+                  <span class="stat-hint">↗ details</span>
+                  <div class="stat-label">RAM Usage</div>
+                  <div id="val-ram" class="stat-value">6.7 GB / 16 GB</div>
+                  <div class="progress-track">
+                    <div id="bar-ram" class="progress-fill progress-fill--ram" style="width: 42%;"></div>
+                  </div>
+                </div>
+
+                <div class="stat-box stat-box--load">
+                  <div class="stat-label">Load Average (1 / 5 / 15 min)</div>
+                  <div id="val-load" class="stat-value">0.42 / 0.38 / 0.31</div>
+                </div>
+              </div>
+
+              <!-- Real-time Chart Canvas -->
+              <div style="background-color: var(--bg-dark); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                  <span style="font-size: 0.85rem; font-weight: 600;">Real-Time CPU &amp; RAM Telemetry</span>
+                  <div class="chart-legend">
+                    <span><span class="legend-dot legend-dot--cpu"></span>CPU</span>
+                    <span><span class="legend-dot legend-dot--ram"></span>RAM</span>
+                    <span class="ws-badge">● LIVE</span>
+                  </div>
+                </div>
+                <canvas id="demoCanvas"></canvas>
+              </div>
+            </div>
+
+            <!-- View 2: Top Processes -->
+            <div id="view-processes" class="demo-view" style="display: none;">
+              <table class="demo-table">
+                <thead>
+                  <tr>
+                    <th>PID</th>
+                    <th>NAME</th>
+                    <th>STATE</th>
+                    <th>CPU %</th>
+                    <th>RSS (RAM)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="clickable" data-metric="proc" data-pid="1242" data-name="statix">
+                    <td>1242</td>
+                    <td class="proc-name">statix</td>
+                    <td>S</td>
+                    <td>0.2%</td>
+                    <td>18.4 MB</td>
+                  </tr>
+                  <tr class="clickable" data-metric="proc" data-pid="841" data-name="nginx">
+                    <td>841</td>
+                    <td class="proc-name">nginx</td>
+                    <td>S</td>
+                    <td>4.1%</td>
+                    <td>64.2 MB</td>
+                  </tr>
+                  <tr class="clickable" data-metric="proc" data-pid="1094" data-name="postgres">
+                    <td>1094</td>
+                    <td class="proc-name">postgres</td>
+                    <td>S</td>
+                    <td>2.8%</td>
+                    <td>210.8 MB</td>
+                  </tr>
+                  <tr class="clickable" data-metric="proc" data-pid="3102" data-name="redis-server">
+                    <td>3102</td>
+                    <td class="proc-name">redis-server</td>
+                    <td>S</td>
+                    <td>0.8%</td>
+                    <td>42.1 MB</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- View 3: Network & Disks -->
+            <div id="view-network" class="demo-view" style="display: none;">
+              <div class="grid-2">
+                <div>
+                  <h4 style="font-size: 0.85rem; margin-bottom: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em;">Network Throughput</h4>
+                  <div class="net-row" data-metric="net">
+                    <span class="net-iface">lo</span>
+                    <div class="net-stat">
+                      <span class="net-stat-label">RX</span>
+                      <span class="net-stat-value">0 B/s</span>
+                    </div>
+                    <div class="net-stat">
+                      <span class="net-stat-label">TX</span>
+                      <span class="net-stat-value">0 B/s</span>
+                    </div>
+                  </div>
+                  <div class="net-row" data-metric="net">
+                    <span class="net-iface">eth0</span>
+                    <div class="net-stat">
+                      <span class="net-stat-label">RX</span>
+                      <span id="val-rx" class="net-stat-value">12.4 MB/s</span>
+                    </div>
+                    <div class="net-stat">
+                      <span class="net-stat-label">TX</span>
+                      <span id="val-tx" class="net-stat-value">2.1 MB/s</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 style="font-size: 0.85rem; margin-bottom: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em;">Disk Storage &amp; I/O</h4>
+                  <div style="background-color: var(--bg-dark); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1rem; cursor: pointer;" data-metric="disk">
+                    <div class="disk-info">
+                      <table class="demo-table">
+                        <thead>
+                          <tr>
+                            <th>Device</th>
+                            <th>Used %</th>
+                            <th>Read</th>
+                            <th>Write</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td>/dev/sda1</td>
+                            <td>38.2%</td>
+                            <td id="val-diskr">1.0 KB/s</td>
+                            <td id="val-diskw">512 B/s</td>
+                          </tr>
+                          <tr>
+                            <td>/dev/sdb1</td>
+                            <td>12.5%</td>
+                            <td>0 B/s</td>
+                            <td>0 B/s</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Features Grid -->
+    <section id="features" class="features-section">
+      <div class="container">
+        <h2 class="section-title">Engineered for Extreme Efficiency</h2>
+        <p class="section-desc">Designed to monitor Linux systems without stealing CPU cycles or memory from your workloads.</p>
+
+        <div class="grid-3">
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+            </div>
+            <h3 class="feature-title">Direct /proc Parsing</h3>
+            <p class="feature-desc">Zero reflection, zero heavy cross-platform abstraction wrappers. Directly reads Linux kernel interfaces for instantaneous metric accuracy.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+              </svg>
+            </div>
+            <h3 class="feature-title">Single Static Binary</h3>
+            <p class="feature-desc">Compiled with <code>CGO_ENABLED=0</code>. All templates, CSS, and JS libraries are embedded inside the binary via <code>go:embed</code>.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+            </div>
+            <h3 class="feature-title">Hardened Security</h3>
+            <p class="feature-desc">Argon2id password hashing (OWASP 2023 specs), HTTP-only SameSite=Strict session cookies, CSRF protection, and sliding-window IP rate limiting.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              </svg>
+            </div>
+            <h3 class="feature-title">Native Docker Support</h3>
+            <p class="feature-desc">Includes multi-stage Dockerfile and Docker Compose setup for instant deployment in containerized environments.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+            </div>
+            <h3 class="feature-title">In-Memory Ring Buffer</h3>
+            <p class="feature-desc">Fixed-capacity circular slice protected by <code>sync.RWMutex</code> stores 6 hours of metric history (10,800 snapshots) in ~5.4 MB RAM.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              </svg>
+            </div>
+            <h3 class="feature-title">Hardened Systemd Service</h3>
+            <p class="feature-desc">Automated installer provisions a system user with <code>CAP_NET_BIND_SERVICE</code>, <code>ProtectSystem=strict</code>, and <code>NoNewPrivileges=true</code>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture & Comparison Table -->
+    <section id="architecture" class="arch-section">
+      <div class="container">
+        <h2 class="section-title">Architectural Benchmark Comparison</h2>
+        <p class="section-desc">Comparing Statix against traditional monitoring solutions on Linux.</p>
+
+        <div class="table-wrapper">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Metric / Attribute</th>
+                <th>Statix</th>
+                <th>gopsutil-based Exporters</th>
+                <th>Prometheus Node Exporter</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="highlight-row">
+                <td><strong>Binary Size</strong></td>
+                <td><strong style="color: var(--accent-cpu);">~18 MB</strong> (Single binary)</td>
+                <td>~45 MB+</td>
+                <td>~30 MB</td>
+              </tr>
+              <tr>
+                <td><strong>Memory Footprint</strong></td>
+                <td><strong style="color: var(--accent-ram);">~18 MB RAM</strong></td>
+                <td>~40 MB RAM</td>
+                <td>~35 MB RAM</td>
+              </tr>
+              <tr class="highlight-row">
+                <td><strong>External Metric Agent Required</strong></td>
+                <td><strong style="color: var(--text-primary);">No</strong> (Built-in Web &amp; Storage)</td>
+                <td>Yes</td>
+                <td>Yes (Requires Prometheus Server)</td>
+              </tr>
+              <tr>
+                <td><strong>Docker &amp; Compose Support</strong></td>
+                <td><strong style="color: var(--text-primary);">Built-in (Dockerfile)</strong></td>
+                <td>Varies</td>
+                <td>Yes</td>
+              </tr>
+              <tr class="highlight-row">
+                <td><strong>Kernel Reading Method</strong></td>
+                <td><strong style="color: var(--text-primary);">Direct <code>/proc</code> Parsing</strong></td>
+                <td>Reflection / Cgo Wrappers</td>
+                <td>Direct <code>/proc</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Download Section -->
+    <section id="downloads" class="download-section">
+      <div class="container">
+        <h2 class="section-title">Download Statix Binaries</h2>
+        <p class="section-desc">Standalone, statically linked Linux binaries for amd64 and arm64.</p>
+
+        <div class="download-cards">
+          <div class="download-card">
+            <div class="download-title">Linux x86_64</div>
+            <div class="download-sub">statix-linux-amd64</div>
+            <a href="https://github.com/Woffluon/Statix/releases/latest/download/statix-linux-amd64" class="btn btn-primary" style="width: 100%;">
+              Download amd64
+            </a>
+          </div>
+
+          <div class="download-card">
+            <div class="download-title">Linux ARM64</div>
+            <div class="download-sub">statix-linux-arm64</div>
+            <a href="https://github.com/Woffluon/Statix/releases/latest/download/statix-linux-arm64" class="btn btn-primary" style="width: 100%;">
+              Download arm64
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="container">
+        <p>Statix is open-source software published under the MIT License.</p>
+        <p style="margin-top: 0.5rem;"><a href="https://github.com/Woffluon/Statix" target="_blank" rel="noopener" style="color: var(--text-secondary);">github.com/Woffluon/Statix</a></p>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Toast Element -->
+  <div id="toast" class="toast">
+    ✓ Command copied to clipboard!
+  </div>
+
+  <!-- Metric Detail Drawer -->
+  <div id="drawer-overlay" class="drawer-overlay" role="dialog" aria-modal="true" aria-label="Metric details">
+    <div class="drawer-panel" id="drawer-panel">
+      <div class="drawer-header">
+        <div class="drawer-title" id="drawer-title">Details</div>
+        <button class="drawer-close" id="drawer-close" aria-label="Close drawer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="drawer-body" id="drawer-body">
+        <!-- populated by JS -->
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

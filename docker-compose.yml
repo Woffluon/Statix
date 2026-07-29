@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  statix:
+    image: statix:local
+    pull_policy: build
+    build:
+      context: https://github.com/Woffluon/Statix.git#main
+      dockerfile: Dockerfile
+    container_name: statix
+    restart: unless-stopped
+    ports:
+      - "8080"
+    volumes:
+      - statix-config:/etc/statix
+      - /proc:/host/proc:ro
+    environment:
+      - LOG_FORMAT=json
+
+volumes:
+  statix-config:
