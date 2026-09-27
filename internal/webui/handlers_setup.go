@@ -14,6 +14,7 @@ import (
 type setupPageData struct {
 	CSRFToken       string
 	ShowHeader      bool
+	Version         string
 	Error           string
 	Username        string
 	ListenAddr      string
@@ -59,6 +60,7 @@ func (s *Server) handleSetupGet(w http.ResponseWriter, r *http.Request) {
 	data := setupPageData{
 		CSRFToken:  csrfToken,
 		ShowHeader: false,
+		Version:    s.version,
 		ListenAddr: s.cfg.ListenAddr,
 	}
 
@@ -76,6 +78,7 @@ func (s *Server) handleSetupPost(w http.ResponseWriter, r *http.Request) {
 	data := setupPageData{
 		CSRFToken:  csrfToken,
 		ShowHeader: false,
+		Version:    s.version,
 		Username:   username,
 		ListenAddr: listenAddr,
 	}

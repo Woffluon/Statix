@@ -9,6 +9,7 @@ import (
 type loginPageData struct {
 	CSRFToken  string
 	ShowHeader bool
+	Version    string
 	Error      string
 }
 
@@ -26,6 +27,7 @@ func (s *Server) handleLoginGet(w http.ResponseWriter, r *http.Request) {
 	data := loginPageData{
 		CSRFToken:  csrfToken,
 		ShowHeader: false,
+		Version:    s.version,
 	}
 
 	s.renderTemplate(w, r, "login.html", data)
@@ -43,6 +45,7 @@ func (s *Server) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		s.renderTemplate(w, r, "login.html", loginPageData{
 			CSRFToken:  csrfToken,
 			ShowHeader: false,
+			Version:    s.version,
 			Error:      "Too many failed login attempts. Account temporarily locked.",
 		})
 		return
@@ -54,6 +57,7 @@ func (s *Server) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		s.renderTemplate(w, r, "login.html", loginPageData{
 			CSRFToken:  csrfToken,
 			ShowHeader: false,
+			Version:    s.version,
 			Error:      "Invalid username or password.",
 		})
 		return
@@ -66,6 +70,7 @@ func (s *Server) handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		s.renderTemplate(w, r, "login.html", loginPageData{
 			CSRFToken:  csrfToken,
 			ShowHeader: false,
+			Version:    s.version,
 			Error:      "Invalid username or password.",
 		})
 		return

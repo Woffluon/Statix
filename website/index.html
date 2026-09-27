@@ -813,10 +813,10 @@ curl -sSL https://raw.githubusercontent.com/Woffluon/Statix/main/deploy/install.
 <span class="comment"># 2. Check service status:</span>
 sudo systemctl status statix
 
-<span class="comment"># 3. Clean uninstall when needed:</span>
-sudo systemctl stop statix &amp;&amp; sudo systemctl disable statix
-sudo rm -f /usr/local/bin/statix /etc/systemd/system/statix.service
-sudo systemctl daemon-reload</code></pre>
+<span class="comment"># 3. Complete clean uninstall and purge:</span>
+sudo systemctl stop statix 2>/dev/null || true &amp;&amp; sudo systemctl disable statix 2>/dev/null || true
+sudo rm -f /etc/systemd/system/statix.service &amp;&amp; sudo systemctl daemon-reload
+sudo rm -f /usr/local/bin/statix &amp;&amp; sudo rm -rf /etc/statix &amp;&amp; sudo userdel statix 2>/dev/null || true</code></pre>
             </div>
             <!-- Binary tab -->
             <div class="qr-content" id="tab-binary" style="display: none;">
