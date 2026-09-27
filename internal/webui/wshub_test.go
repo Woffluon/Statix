@@ -112,7 +112,7 @@ func TestWSHubBroadcastAndSlowClient(t *testing.T) {
 		HTTPHeader: header,
 	})
 	require.NoError(t, err)
-	defer conn.CloseNow()
+	defer func() { _ = conn.CloseNow() }()
 
 	// Publish multiple snapshots rapidly to test ring-buffer drop behavior on client queue
 	for i := 0; i < 70; i++ {
