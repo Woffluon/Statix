@@ -54,6 +54,34 @@ func TestRingBufferOperations(t *testing.T) {
 	assert.Equal(t, uint64(200), allOverwritten[0].MemTotal)
 	assert.Equal(t, uint64(300), allOverwritten[1].MemTotal)
 	assert.Equal(t, uint64(400), allOverwritten[2].MemTotal)
+
+	// Verify defensive copying: mutations to returned slices must not affect internal buffer
+	s5 := metrics.Snapshot{
+		MemTotal:  500,
+		CPU:       []metrics.CPUStat{{Core: 0, Percent: 50.0}},
+		Disks:     []metrics.DiskStat{{Device: "sda", UsedPct: 40.0}},
+		Networks:  []metrics.NetStat{{Interface: "eth0", RXBps: 1000}},
+		Processes: []metrics.ProcessStat{{PID: 1, CPUPct: 10.0}},
+	}
+	rb.Push(s5)
+
+	latest, ok = rb.Latest()
+	require.True(t, ok)
+	latest.CPU[0].Percent = 99.9
+	latest.Disks[0].UsedPct = 88.8
+	latest.Networks[0].RXBps = 9999
+	latest.Processes[0].CPUPct = 77.7
+
+	latestAgain, _ := rb.Latest()
+	assert.Equal(t, 50.0, latestAgain.CPU[0].Percent)
+	assert.Equal(t, 40.0, latestAgain.Disks[0].UsedPct)
+	assert.Equal(t, 1000.0, latestAgain.Networks[0].RXBps)
+	assert.Equal(t, 10.0, latestAgain.Processes[0].CPUPct)
+
+	allSlice := rb.All()
+	allSlice[len(allSlice)-1].CPU[0].Percent = 100.0
+	latestAfterAll, _ := rb.Latest()
+	assert.Equal(t, 50.0, latestAfterAll.CPU[0].Percent)
 }
 
 func TestCollectorRunCancelClean(t *testing.T) {
@@ -95,43 +123,42 @@ func TestCollectorRunCancelClean(t *testing.T) {
 	assert.GreaterOrEqual(t, buf.Size(), 1)
 }
 
-func BenchmarkRingBufferPush(b *testing.B) {
-	rb := metrics.NewRingBuffer(10800)
-	s := metrics.Snapshot{
-		CPU:      make([]metrics.CPUStat, 8),
-		LoadAvg:  [3]float64{1.0, 2.0, 3.0},
-		MemTotal: 16 * 1024 * 1024 * 1024,
+func TestComputeDiskIOGeneralDevices(t *testing.T) {
+	fakeStatfs := func(path string) (uint64, uint64, error) {
+		return 1000, 200, nil // 80% used
 	}
 
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		rb.Push(s)
+	// Test with various primary devices: vda, xvda, nvme0n1, mmcblk0, dm-0, sdb
+	devices := []string{"vda", "xvda", "nvme0n1", "mmcblk0", "dm-0", "sdb"}
+	for _, dev := range devices {
+		curr := []metrics.DiskRaw{
+			{Device: dev, ReadsCompleted: 10, SectorsRead: 100, WritesCompleted: 5, SectorsWritten: 50},
+		}
+		stats := metrics.ComputeDiskIOForTest(nil, curr, time.Second, fakeStatfs)
+		require.Len(t, stats, 1)
+		assert.Equal(t, dev, stats[0].Device)
+		assert.InDelta(t, 80.0, stats[0].UsedPct, 0.01, "dev %s should report root used pct", dev)
 	}
 }
 
-func BenchmarkCollectSnapshot(b *testing.B) {
-	tempDir := b.TempDir()
-	procDir := filepath.Join(tempDir, "proc")
-	_ = os.MkdirAll(filepath.Join(procDir, "net"), 0755)
+func TestProcessCPUUnderflow(t *testing.T) {
+	tempDir := t.TempDir()
+	pidDir := filepath.Join(tempDir, "123")
+	require.NoError(t, os.MkdirAll(pidDir, 0755))
 
-	_ = os.WriteFile(filepath.Join(procDir, "stat"), []byte("cpu 100 0 100 1000 0 0 0 0\n"), 0644)
-	_ = os.WriteFile(filepath.Join(procDir, "meminfo"), []byte("MemTotal: 1000 kB\nMemAvailable: 500 kB\n"), 0644)
-	_ = os.WriteFile(filepath.Join(procDir, "loadavg"), []byte("0.10 0.20 0.30 1/100 1234\n"), 0644)
-	_ = os.WriteFile(filepath.Join(procDir, "diskstats"), []byte("8 0 sda 10 0 100 0 10 0 100 0 0 0 0\n"), 0644)
-	_ = os.WriteFile(filepath.Join(procDir, "net/dev"), []byte("Inter-| Receive | Transmit\n face |bytes packets errs drop fifo frame compressed multicast|bytes packets errs drop fifo colls carrier compressed\n eth0: 100 1 0 0 0 0 0 0 200 2 0 0 0 0 0 0\n"), 0644)
-	_ = os.WriteFile(filepath.Join(procDir, "uptime"), []byte("1000.0 900.0\n"), 0644)
+	// Write stat where utime=10, stime=5 (total 15)
+	statContent := "123 (testproc) S 1 1 1 0 -1 0 0 0 0 0 10 5 0 0 20 0 1 0 100 1000 100"
+	require.NoError(t, os.WriteFile(filepath.Join(pidDir, "stat"), []byte(statContent), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(pidDir, "status"), []byte("Name:\ttestproc\nVmRSS:\t1024 kB\n"), 0644))
 
-	buf := metrics.NewRingBuffer(10)
-	col := metrics.New(metrics.CollectorConfig{
-		Interval: 1 * time.Second,
-		ProcRoot: procDir,
-	}, buf)
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		_ = col
+	// Provide prevCPU with HIGHER total: utime=20, stime=20 (total 40)
+	// currTotal (15) < prevTotal (40) -> would underflow unsigned uint64 without guard
+	prev := map[int]metrics.ProcCPURawForTest{
+		123: {Utime: 20, Stime: 20, TimeSec: 100.0},
 	}
+
+	stats, _, err := metrics.CollectProcessesForTest(tempDir, prev, 0, 101.0, 10)
+	require.NoError(t, err)
+	require.Len(t, stats, 1)
+	assert.Equal(t, 0.0, stats[0].CPUPct, "should be 0, not uint64 overflow")
 }

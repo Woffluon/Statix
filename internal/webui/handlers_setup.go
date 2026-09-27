@@ -1,7 +1,10 @@
 package webui
 
 import (
+	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/statix/statix/internal/auth"
@@ -9,13 +12,31 @@ import (
 )
 
 type setupPageData struct {
-	CSRFToken     string
-	ShowHeader    bool
-	Error         string
-	Username      string
-	ListenAddr    string
-	UsernameError string
-	PasswordError string
+	CSRFToken       string
+	ShowHeader      bool
+	Error           string
+	Username        string
+	ListenAddr      string
+	UsernameError   string
+	PasswordError   string
+	ListenAddrError string
+}
+
+func validateListenAddr(addr string) error {
+	host, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("must be in host:port or :port format (e.g. :8080 or 127.0.0.1:8080)")
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil || port < 1 || port > 65535 {
+		return fmt.Errorf("port must be an integer between 1 and 65535")
+	}
+	if host != "" && net.ParseIP(host) == nil {
+		if strings.ContainsAny(host, " /\\:;?#@!$%^&*()+=`~<>{}[]|\"'") {
+			return fmt.Errorf("invalid host format")
+		}
+	}
+	return nil
 }
 
 func (s *Server) setupGuard(next http.Handler) http.Handler {
@@ -75,6 +96,10 @@ func (s *Server) handleSetupPost(w http.ResponseWriter, r *http.Request) {
 
 	if listenAddr == "" {
 		listenAddr = ":8080"
+	}
+	if err := validateListenAddr(listenAddr); err != nil {
+		data.ListenAddrError = "Invalid listen address: " + err.Error()
+		hasErr = true
 	}
 
 	if hasErr {

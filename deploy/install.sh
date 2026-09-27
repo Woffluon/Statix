@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # Statix One-Command Installer
-# Usage: curl -sSL https://raw.githubusercontent.com/statix/statix/main/deploy/install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/Woffluon/Statix/main/deploy/install.sh | bash
 
-REPO="statix/statix"
+REPO="Woffluon/Statix"
 INSTALL_BIN="/usr/local/bin/statix"
 CONFIG_DIR="/etc/statix"
 SERVICE_FILE="/etc/systemd/system/statix.service"

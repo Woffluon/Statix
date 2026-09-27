@@ -47,7 +47,7 @@ func (r *RingBuffer) Latest() (Snapshot, bool) {
 	}
 
 	idx := (r.head - 1 + r.cap) % r.cap
-	return r.data[idx], true
+	return r.data[idx].Clone(), true
 }
 
 // All returns a slice containing a copy of all current Snapshots in chronological order (oldest to newest).
@@ -60,13 +60,9 @@ func (r *RingBuffer) All() []Snapshot {
 	}
 
 	result := make([]Snapshot, r.size)
-	if r.size < r.cap {
-		// Buffer not full yet, data is at [0..size-1]
-		copy(result, r.data[:r.size])
-	} else {
-		// Buffer full: oldest item is at r.head
-		n1 := copy(result, r.data[r.head:])
-		copy(result[n1:], r.data[:r.head])
+	for i := 0; i < r.size; i++ {
+		idx := (r.head - r.size + i + r.cap) % r.cap
+		result[i] = r.data[idx].Clone()
 	}
 
 	return result

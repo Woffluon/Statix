@@ -88,3 +88,57 @@ func TestCSRFValidation(t *testing.T) {
 	assert.False(t, auth.ValidateCSRFToken("", token))
 	assert.False(t, auth.ValidateCSRFToken(token, ""))
 }
+
+func TestVerifyPasswordBoundsDoS(t *testing.T) {
+	// Memory exceeds 256MB limit (e.g. 512MB)
+	hugeMemHash := "$argon2id$v=19$m=524288,t=3,p=2$c29tZXNhbHQ$c29tZWhhc2g"
+	valid, err := auth.VerifyPassword("password", hugeMemHash)
+	assert.Error(t, err)
+	assert.False(t, valid)
+	assert.Contains(t, err.Error(), "bounds")
+
+	// Iterations exceeds 10
+	hugeIterHash := "$argon2id$v=19$m=65536,t=100,p=2$c29tZXNhbHQ$c29tZWhhc2g"
+	valid, err = auth.VerifyPassword("password", hugeIterHash)
+	assert.Error(t, err)
+	assert.False(t, valid)
+	assert.Contains(t, err.Error(), "bounds")
+
+	// Parallelism exceeds 16
+	hugeParallelHash := "$argon2id$v=19$m=65536,t=3,p=32$c29tZXNhbHQ$c29tZWhhc2g"
+	valid, err = auth.VerifyPassword("password", hugeParallelHash)
+	assert.Error(t, err)
+	assert.False(t, valid)
+	assert.Contains(t, err.Error(), "bounds")
+
+	// Zero values
+	zeroHash := "$argon2id$v=19$m=0,t=0,p=0$c29tZXNhbHQ$c29tZWhhc2g"
+	valid, err = auth.VerifyPassword("password", zeroHash)
+	assert.Error(t, err)
+	assert.False(t, valid)
+	assert.Contains(t, err.Error(), "bounds")
+}
+
+func TestRateLimiterCleanup(t *testing.T) {
+	window := 50 * time.Millisecond
+	lockout := 50 * time.Millisecond
+	rl := auth.NewRateLimiter(2, window, lockout)
+
+	rl.Record("1.1.1.1", "user1")
+	rl.Record("2.2.2.2", "user2")
+	assert.Equal(t, 2, rl.Size())
+
+	// Wait for window to expire
+	time.Sleep(75 * time.Millisecond)
+	rl.Cleanup()
+	assert.Equal(t, 0, rl.Size())
+
+	// Test locked entry expiration
+	rl.Record("3.3.3.3", "user3")
+	rl.Record("3.3.3.3", "user3") // reaches limit (2) -> locked
+	assert.Equal(t, 1, rl.Size())
+
+	time.Sleep(75 * time.Millisecond)
+	rl.Cleanup()
+	assert.Equal(t, 0, rl.Size())
+}

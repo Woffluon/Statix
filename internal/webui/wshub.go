@@ -28,6 +28,8 @@ type WSHub struct {
 	hasLast      bool
 	mu           sync.RWMutex
 	logger       *slog.Logger
+	done         chan struct{}
+	closeOnce    sync.Once
 }
 
 func NewWSHub(logger *slog.Logger) *WSHub {
@@ -37,14 +39,21 @@ func NewWSHub(logger *slog.Logger) *WSHub {
 		broadcast:  make(chan metrics.Snapshot, 10),
 		clients:    make(map[*wsClient]struct{}),
 		logger:     logger,
+		done:       make(chan struct{}),
 	}
 }
 
 func (h *WSHub) Run(ctx context.Context) {
+	defer func() {
+		h.closeOnce.Do(func() {
+			close(h.done)
+		})
+		h.closeAll()
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
-			h.closeAll()
 			return
 
 		case client := <-h.register:
@@ -64,7 +73,7 @@ func (h *WSHub) Run(ctx context.Context) {
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
-				_ = client.conn.Close(websocket.StatusNormalClosure, "unregistered")
+				_ = client.conn.CloseNow()
 			}
 			h.mu.Unlock()
 			h.logger.Debug("wshub: client unregistered")
@@ -95,6 +104,8 @@ func (h *WSHub) Run(ctx context.Context) {
 
 func (h *WSHub) Publish(s metrics.Snapshot) {
 	select {
+	case <-h.done:
+		return
 	case h.broadcast <- s:
 	default:
 		h.logger.Warn("wshub: broadcast channel full, dropping snapshot")
@@ -106,8 +117,9 @@ func (h *WSHub) closeAll() {
 	defer h.mu.Unlock()
 
 	for client := range h.clients {
-		_ = client.conn.Close(websocket.StatusGoingAway, "server shutting down")
 		client.cancel()
+		_ = client.conn.CloseNow()
+		close(client.send)
 		delete(h.clients, client)
 	}
 }
@@ -125,10 +137,9 @@ func (h *WSHub) UpgradeAndServe(w http.ResponseWriter, r *http.Request, store *a
 		return
 	}
 
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		InsecureSkipVerify: true,
-		OriginPatterns:     []string{"*"},
-	})
+	// CSWSH Protection: coder/websocket Accept validates Origin against Host header
+	// when OriginPatterns is nil and InsecureSkipVerify is false.
+	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		h.logger.Error("wshub: websocket accept failed", "error", err)
 		return
@@ -142,11 +153,25 @@ func (h *WSHub) UpgradeAndServe(w http.ResponseWriter, r *http.Request, store *a
 		cancel: cancel,
 	}
 
-	h.register <- client
+	select {
+	case h.register <- client:
+	case <-h.done:
+		_ = conn.Close(websocket.StatusGoingAway, "server shutting down")
+		cancel()
+		return
+	case <-ctx.Done():
+		_ = conn.Close(websocket.StatusGoingAway, "request cancelled")
+		cancel()
+		return
+	}
 
 	defer func() {
-		h.unregister <- client
 		cancel()
+		select {
+		case h.unregister <- client:
+		case <-h.done:
+		default:
+		}
 	}()
 
 	// Writer loop

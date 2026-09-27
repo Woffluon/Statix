@@ -1,209 +1,646 @@
+/**
+ * Statix Live Telemetry Simulator & Interactions
+ * High-performance, zero-dependency, DPI-aware Vanilla JS engine.
+ */
+
 document.addEventListener('DOMContentLoaded', () => {
-  initCopyButton();
+  initClipboardActions();
+  initMobileMenu();
+  initQuickrunTabs();
   initLiveDemo();
   initDrawer();
 });
 
-// ─── Copy Button ────────────────────────────────────────────────────────────
-
-function initCopyButton() {
+// ─── Clipboard & Copy Handlers ──────────────────────────────────────────────
+function initClipboardActions() {
   const copyBtn = document.getElementById('copyBtn');
-  const toast   = document.getElementById('toast');
-  const cmd = 'curl -sSL https://raw.githubusercontent.com/Woffluon/Statix/main/deploy/install.sh | sudo bash';
+  const installCmd = 'curl -sSL https://raw.githubusercontent.com/Woffluon/Statix/main/deploy/install.sh | sudo bash';
 
-  if (!copyBtn) return;
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      copyToClipboard(installCmd, copyBtn, 'Copied');
+    });
+  }
 
-  copyBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(cmd).then(() => {
-      toast.classList.add('show');
-      copyBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <polyline points="20 6 9 17 4 12"></polyline>
-        </svg>
-        Copied!
-      `;
-      setTimeout(() => {
-        toast.classList.remove('show');
-        copyBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-          </svg>
-          Copy
-        `;
-      }, 2500);
+  // Keyboard shortcut: Cmd+K or Ctrl+K triggers copy
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      copyToClipboard(installCmd, copyBtn, 'Copied');
+    }
+  });
+
+  // Checksum copy buttons
+  document.querySelectorAll('.checksum-copy-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const hash = btn.getAttribute('data-copy');
+      if (hash) {
+        copyToClipboard(hash, btn, 'Copied');
+      }
     });
   });
 }
 
-// ─── Animated Counter ───────────────────────────────────────────────────────
-
-function animateValue(el, from, to, duration, suffix, flashClass) {
-  if (!el) return;
-  const start = performance.now();
-  const diff  = to - from;
-  function step(now) {
-    const t = Math.min((now - start) / duration, 1);
-    const ease = 1 - Math.pow(1 - t, 3); // cubic ease-out
-    el.textContent = (from + diff * ease).toFixed(1) + suffix;
-    if (t < 1) requestAnimationFrame(step);
-  }
-  // Flash colour
-  if (flashClass) {
-    el.classList.remove('flash-cpu', 'flash-ram');
-    void el.offsetWidth; // reflow to restart animation
-    el.classList.add(flashClass);
-    setTimeout(() => el.classList.remove(flashClass), 350);
-  }
-  requestAnimationFrame(step);
+function copyToClipboard(text, targetBtn, feedbackText) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(feedbackText ? feedbackText + ' to clipboard' : 'Copied to clipboard');
+    if (targetBtn) {
+      const originalHTML = targetBtn.innerHTML;
+      targetBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span class="copy-text">${feedbackText || 'Copied'}</span>
+      `;
+      targetBtn.style.borderColor = 'var(--accent-ram)';
+      setTimeout(() => {
+        targetBtn.innerHTML = originalHTML;
+        targetBtn.style.borderColor = '';
+      }, 2000);
+    }
+  }).catch(() => {
+    showToast('Failed to copy text to clipboard');
+  });
 }
 
-// ─── Simulation State ───────────────────────────────────────────────────────
+function showToast(message) {
+  const toast = document.getElementById('toast');
+  const msgEl = document.getElementById('toastMessage');
+  if (!toast) return;
 
-const SIM_POINTS = 40;
-let cpuData = Array(SIM_POINTS).fill(18);
-let ramData = Array(SIM_POINTS).fill(42);
+  if (msgEl) msgEl.textContent = message;
+  toast.classList.add('show');
+  clearTimeout(window.__toastTimeout);
+  window.__toastTimeout = setTimeout(() => {
+    toast.classList.remove('show');
+  }, 2400);
+}
 
-// Per-core simulation (4 cores)
-let coreData = [15, 22, 10, 28];
+// ─── Mobile Navigation Drawer ───────────────────────────────────────────────
+function initMobileMenu() {
+  const toggleBtn = document.getElementById('mobileMenuToggle');
+  const drawer    = document.getElementById('mobileNavDrawer');
+  const backdrop  = document.getElementById('mobileNavBackdrop');
+  const closeBtn  = document.getElementById('mobileNavClose');
 
-// Network history for sparklines (last 20 values)
-let rxHistory = Array(20).fill(12);
-let txHistory = Array(20).fill(2);
+  if (!toggleBtn || !drawer || !backdrop) return;
 
-let prevCPU = 18;
-let prevRAM = 42;
+  function openMenu() {
+    drawer.classList.add('open');
+    backdrop.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    toggleBtn.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+  }
 
-// ─── Live Demo ──────────────────────────────────────────────────────────────
+  function closeMenu() {
+    drawer.classList.remove('open');
+    backdrop.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    toggleBtn.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  }
 
+  toggleBtn.addEventListener('click', openMenu);
+  if (closeBtn) closeBtn.addEventListener('click', closeMenu);
+  backdrop.addEventListener('click', closeMenu);
+
+  document.querySelectorAll('.mobile-nav-link').forEach((link) => {
+    link.addEventListener('click', closeMenu);
+  });
+}
+
+// ─── Quickrun Code Tabs ─────────────────────────────────────────────────────
+function initQuickrunTabs() {
+  const tabBtns = document.querySelectorAll('.qr-tab-btn');
+  tabBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      tabBtns.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const targetId = 'tab-' + btn.dataset.tab;
+      document.querySelectorAll('.qr-content').forEach((panel) => {
+        panel.style.display = panel.id === targetId ? 'block' : 'none';
+      });
+    });
+  });
+}
+
+// ─── Homelab Process Metadata Catalog ──────────────────────────────────────
+const HOMELAB_SERVICES = {
+  '1042': {
+    name: 'statix',
+    cmdline: '/usr/local/bin/statix --addr 0.0.0.0:8080',
+    user: 'statix',
+    uid: '1001',
+    gid: '1001',
+    state: 'S (Interruptible Sleep)',
+    cpu: '0.1',
+    rss: '18.2 MB',
+    vmsize: '28.4 MB',
+    threads: 6,
+    fds: 18,
+    statusText: `Name:\tstatix
+Umask:\t0022
+State:\tS (sleeping)
+Tgid:\t1042
+Ngid:\t0
+Pid:\t1042
+PPid:\t1
+TracerPid:\t0
+Uid:\t1001\t1001\t1001\t1001
+Gid:\t1001\t1001\t1001\t1001
+FDSize:\t64
+VmPeak:\t   32412 kB
+VmSize:\t   28410 kB
+VmLck:\t       0 kB
+VmHWM:\t   18420 kB
+VmRSS:\t   18240 kB
+Threads:\t6`
+  },
+  '621': {
+    name: 'caddy',
+    cmdline: '/usr/bin/caddy run --config /etc/caddy/Caddyfile',
+    user: 'caddy',
+    uid: '998',
+    gid: '998',
+    state: 'S (Interruptible Sleep)',
+    cpu: '0.4',
+    rss: '32.4 MB',
+    vmsize: '74.8 MB',
+    threads: 10,
+    fds: 24,
+    statusText: `Name:\tcaddy
+Umask:\t0022
+State:\tS (sleeping)
+Tgid:\t621
+Ngid:\t0
+Pid:\t621
+PPid:\t1
+TracerPid:\t0
+Uid:\t998\t998\t998\t998
+Gid:\t998\t998\t998\t998
+FDSize:\t128
+VmPeak:\t   78210 kB
+VmSize:\t   74800 kB
+VmLck:\t       0 kB
+VmHWM:\t   34120 kB
+VmRSS:\t   32400 kB
+Threads:\t10`
+  },
+  '789': {
+    name: 'tailscaled',
+    cmdline: '/usr/sbin/tailscaled --state=/var/lib/tailscale/tailscaled.state',
+    user: 'tailscale',
+    uid: '994',
+    gid: '994',
+    state: 'S (Interruptible Sleep)',
+    cpu: '0.3',
+    rss: '28.6 MB',
+    vmsize: '52.1 MB',
+    threads: 8,
+    fds: 20,
+    statusText: `Name:\ttailscaled
+Umask:\t0022
+State:\tS (sleeping)
+Tgid:\t789
+Ngid:\t0
+Pid:\t789
+PPid:\t1
+TracerPid:\t0
+Uid:\t994\t994\t994\t994
+Gid:\t994\t994\t994\t994
+FDSize:\t64
+VmPeak:\t   56200 kB
+VmSize:\t   52100 kB
+VmLck:\t       0 kB
+VmHWM:\t   29800 kB
+VmRSS:\t   28600 kB
+Threads:\t8`
+  },
+  '892': {
+    name: 'docker',
+    cmdline: '/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock',
+    user: 'root',
+    uid: '0',
+    gid: '0',
+    state: 'S (Interruptible Sleep)',
+    cpu: '1.2',
+    rss: '84.5 MB',
+    vmsize: '1420.2 MB',
+    threads: 28,
+    fds: 64,
+    statusText: `Name:\tdockerd
+Umask:\t0022
+State:\tS (sleeping)
+Tgid:\t892
+Ngid:\t0
+Pid:\t892
+PPid:\t1
+TracerPid:\t0
+Uid:\t0\t0\t0\t0
+Gid:\t0\t0\t0\t0
+FDSize:\t256
+VmPeak:\t 1450200 kB
+VmSize:\t 1420200 kB
+VmLck:\t       0 kB
+VmHWM:\t   88200 kB
+VmRSS:\t   84500 kB
+Threads:\t28`
+  },
+  '1105': {
+    name: 'pihole-FTL',
+    cmdline: '/usr/bin/pihole-FTL -f',
+    user: 'pihole',
+    uid: '996',
+    gid: '996',
+    state: 'S (Interruptible Sleep)',
+    cpu: '0.5',
+    rss: '24.1 MB',
+    vmsize: '48.9 MB',
+    threads: 5,
+    fds: 16,
+    statusText: `Name:\tpihole-FTL
+Umask:\t0022
+State:\tS (sleeping)
+Tgid:\t1105
+Ngid:\t0
+Pid:\t1105
+PPid:\t1
+TracerPid:\t0
+Uid:\t996\t996\t996\t996
+Gid:\t996\t996\t996\t996
+FDSize:\t64
+VmPeak:\t   52100 kB
+VmSize:\t   48900 kB
+VmLck:\t       0 kB
+VmHWM:\t   26400 kB
+VmRSS:\t   24100 kB
+Threads:\t5`
+  },
+  '1450': {
+    name: 'jellyfin',
+    cmdline: '/usr/bin/jellyfin --datadir /var/lib/jellyfin',
+    user: 'jellyfin',
+    uid: '992',
+    gid: '992',
+    state: 'S (Interruptible Sleep)',
+    cpu: '3.8',
+    rss: '342.0 MB',
+    vmsize: '2840.0 MB',
+    threads: 36,
+    fds: 92,
+    statusText: `Name:\tjellyfin
+Umask:\t0022
+State:\tS (sleeping)
+Tgid:\t1450
+Ngid:\t0
+Pid:\t1450
+PPid:\t1
+TracerPid:\t0
+Uid:\t992\t992\t992\t992
+Gid:\t992\t992\t992\t992
+FDSize:\t256
+VmPeak:\t 2910000 kB
+VmSize:\t 2840000 kB
+VmLck:\t       0 kB
+VmHWM:\t  362000 kB
+VmRSS:\t  342000 kB
+Threads:\t36`
+  },
+  '1680': {
+    name: 'postgres',
+    cmdline: 'postgres: 16/main: checkpointer writer process',
+    user: 'postgres',
+    uid: '999',
+    gid: '999',
+    state: 'S (Interruptible Sleep)',
+    cpu: '1.8',
+    rss: '186.4 MB',
+    vmsize: '382.5 MB',
+    threads: 1,
+    fds: 42,
+    statusText: `Name:\tpostgres
+Umask:\t0077
+State:\tS (sleeping)
+Tgid:\t1680
+Ngid:\t0
+Pid:\t1680
+PPid:\t1
+TracerPid:\t0
+Uid:\t999\t999\t999\t999
+Gid:\t999\t999\t999\t999
+FDSize:\t128
+VmPeak:\t  394100 kB
+VmSize:\t  382500 kB
+VmLck:\t       0 kB
+VmHWM:\t  192400 kB
+VmRSS:\t  186400 kB
+Threads:\t1`
+  },
+  '2041': {
+    name: 'vaultwarden',
+    cmdline: '/vaultwarden',
+    user: 'vaultwarden',
+    uid: '1002',
+    gid: '1002',
+    state: 'S (Interruptible Sleep)',
+    cpu: '0.2',
+    rss: '46.8 MB',
+    vmsize: '98.2 MB',
+    threads: 12,
+    fds: 28,
+    statusText: `Name:\tvaultwarden
+Umask:\t0022
+State:\tS (sleeping)
+Tgid:\t2041
+Ngid:\t0
+Pid:\t2041
+PPid:\t1
+TracerPid:\t0
+Uid:\t1002\t1002\t1002\t1002
+Gid:\t1002\t1002\t1002\t1002
+FDSize:\t64
+VmPeak:\t  104200 kB
+VmSize:\t   98200 kB
+VmLck:\t       0 kB
+VmHWM:\t   49200 kB
+VmRSS:\t   46800 kB
+Threads:\t12`
+  }
+};
+
+// ─── Telemetry State & Simulation Ring Buffer ──────────────────────────────
+const SIM_POINTS = 50;
+let cpuHistory = Array(SIM_POINTS).fill(18.5);
+let ramHistory = Array(SIM_POINTS).fill(26.2);
+
+// 8 Cores array
+let coreUtilization = [14.2, 22.8, 9.4, 31.0, 18.2, 12.6, 24.1, 16.7];
+
+// Network sparkline buffers (25 ticks)
+let rxBuffer = Array(25).fill(14.2);
+let txBuffer = Array(25).fill(2.6);
+
+let isSimulationPaused = false;
+let simulationInterval = null;
+
+// ─── Live Demo Telemetry Controller ─────────────────────────────────────────
 function initLiveDemo() {
   const canvas = document.getElementById('demoCanvas');
   if (!canvas) return;
 
-  const ctx = canvas.getContext('2d');
-
-  // Tab switching
-  document.querySelectorAll('.tab-btn').forEach(tab => {
+  // View tabs switcher
+  const tabBtns = document.querySelectorAll('.demo-tabs .tab-btn');
+  tabBtns.forEach((tab) => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+      tabBtns.forEach((t) => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
       tab.classList.add('active');
-      const view = tab.getAttribute('data-view');
-      document.querySelectorAll('.demo-view').forEach(v => v.style.display = 'none');
-      document.getElementById('view-' + view).style.display = 'block';
+      tab.setAttribute('aria-selected', 'true');
+
+      const viewId = 'view-' + tab.dataset.view;
+      document.querySelectorAll('.demo-view').forEach((view) => {
+        view.style.display = view.id === viewId ? 'block' : 'none';
+      });
+
+      if (tab.dataset.view === 'overview') {
+        renderCanvasChart();
+      }
     });
   });
 
-  // Process rows → drawer
-  document.querySelectorAll('.demo-table tr.clickable').forEach(row => {
+  // Pause / Resume Stream Toggle
+  const pauseBtn = document.getElementById('telemetryPauseBtn');
+  const pauseIcon = document.getElementById('pauseBtnIcon');
+  const pauseText = document.getElementById('pauseBtnText');
+  if (pauseBtn) {
+    pauseBtn.addEventListener('click', () => {
+      isSimulationPaused = !isSimulationPaused;
+      if (isSimulationPaused) {
+        pauseIcon.textContent = '▶';
+        pauseText.textContent = 'Resume';
+        pauseBtn.style.color = 'var(--accent-cpu)';
+        pauseBtn.style.borderColor = 'var(--accent-cpu)';
+      } else {
+        pauseIcon.textContent = '⏸';
+        pauseText.textContent = 'Pause';
+        pauseBtn.style.color = '';
+        pauseBtn.style.borderColor = '';
+      }
+    });
+  }
+
+  // Process rows click -> open drawer
+  document.querySelectorAll('#processTableBody tr').forEach((row) => {
     row.addEventListener('click', () => {
       openDrawer('proc', {
-        pid:  row.dataset.pid,
+        pid: row.dataset.pid,
         name: row.dataset.name,
+        user: row.dataset.user,
+        cpu: row.dataset.cpu,
+        rss: row.dataset.rss,
       });
     });
   });
 
-  // Stat boxes → drawer
-  document.querySelectorAll('.stat-box[data-metric]').forEach(box => {
-    box.addEventListener('click', () => openDrawer(box.dataset.metric));
+  // Stat boxes click -> open metric drawer
+  document.querySelectorAll('.stat-box[data-metric]').forEach((box) => {
+    box.addEventListener('click', () => {
+      openDrawer(box.dataset.metric);
+    });
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openDrawer(box.dataset.metric);
+      }
+    });
   });
 
-  setInterval(tick, 1500);
-  tick();
+  // Window resize observer for responsive canvas DPI
+  let resizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+      renderCanvasChart();
+    }, 100);
+  });
 
-  function tick() {
-    // CPU fluctuation
-    let newCPU = cpuData[cpuData.length - 1] + (Math.random() * 14 - 7);
-    newCPU = Math.max(4, Math.min(94, newCPU));
-    cpuData.push(newCPU); cpuData.shift();
+  // Render initial cores mini grid
+  updateCoresMiniGrid();
 
-    // RAM fluctuation
-    let newRAM = ramData[ramData.length - 1] + (Math.random() * 3 - 1.5);
-    newRAM = Math.max(28, Math.min(88, newRAM));
-    ramData.push(newRAM); ramData.shift();
-
-    // Per-core
-    coreData = coreData.map(v => {
-      let n = v + (Math.random() * 18 - 9);
-      return Math.max(2, Math.min(98, n));
-    });
-
-    // Network
-    let rx = 8 + Math.random() * 12;
-    let tx = 0.5 + Math.random() * 4;
-    rxHistory.push(rx); rxHistory.shift();
-    txHistory.push(tx); txHistory.shift();
-
-    // Update stat boxes with counter animation
-    const cpuEl = document.getElementById('val-cpu');
-    animateValue(cpuEl, prevCPU, newCPU, 400, '%', 'flash-cpu');
-    document.getElementById('bar-cpu').style.width = newCPU + '%';
-
-    const ramEl = document.getElementById('val-ram');
-    const ramGB = ((newRAM / 100) * 16).toFixed(1);
-    if (ramEl) {
-      ramEl.textContent = ramGB + ' GB / 16 GB';
-      ramEl.classList.remove('flash-ram');
-      void ramEl.offsetWidth;
-      ramEl.classList.add('flash-ram');
-      setTimeout(() => ramEl.classList.remove('flash-ram'), 350);
-    }
-    document.getElementById('bar-ram').style.width = newRAM + '%';
-
-    document.getElementById('val-load').textContent =
-      (newCPU * 0.02).toFixed(2) + ' / ' +
-      (newCPU * 0.018).toFixed(2) + ' / ' +
-      (newCPU * 0.015).toFixed(2);
-
-    document.getElementById('val-rx').textContent = rx.toFixed(1) + ' MB/s';
-    document.getElementById('val-tx').textContent = tx.toFixed(1) + ' MB/s';
-
-    prevCPU = newCPU;
-    prevRAM = newRAM;
-
-    drawChart(ctx, canvas, cpuData, ramData);
-
-    // Update drawer if open
-    refreshDrawer();
-  }
+  // Initial draw & timer
+  renderCanvasChart();
+  simulationInterval = setInterval(telemetryTick, 1200);
 }
 
-// ─── Chart ──────────────────────────────────────────────────────────────────
+// ─── Periodic Telemetry Tick ────────────────────────────────────────────────
+function telemetryTick() {
+  if (isSimulationPaused) return;
 
-function drawChart(ctx, canvas, cpu, ram) {
-  const w = canvas.width  = canvas.parentElement.offsetWidth;
-  const h = canvas.height = 180;
+  // CPU Random Walk with mean-reversion around 19%
+  const lastCPU = cpuHistory[cpuHistory.length - 1];
+  const cpuDelta = (Math.random() * 10 - 4.8) - (lastCPU - 19) * 0.15;
+  const newCPU = Math.max(5.0, Math.min(84.0, lastCPU + cpuDelta));
+  cpuHistory.push(newCPU);
+  cpuHistory.shift();
+
+  // RAM Random Walk (slow drift around 26.2% of 32 GB)
+  const lastRAM = ramHistory[ramHistory.length - 1];
+  const ramDelta = (Math.random() * 1.8 - 0.88);
+  const newRAM = Math.max(22.0, Math.min(48.0, lastRAM + ramDelta));
+  ramHistory.push(newRAM);
+  ramHistory.shift();
+
+  // 8-Core Fluctuations
+  coreUtilization = coreUtilization.map((val) => {
+    const delta = (Math.random() * 14 - 7) - (val - newCPU) * 0.2;
+    return Math.max(2.0, Math.min(94.0, val + delta));
+  });
+
+  // Network I/O Rates
+  const newRX = Math.max(2.4, 12.0 + Math.sin(Date.now() / 3200) * 5 + (Math.random() * 3.5));
+  const newTX = Math.max(0.6, 2.2 + Math.cos(Date.now() / 4200) * 1.4 + (Math.random() * 1.2));
+  rxBuffer.push(newRX);
+  rxBuffer.shift();
+  txBuffer.push(newTX);
+  txBuffer.shift();
+
+  // Disk I/O Rates
+  const diskRead = (Math.random() * 3.2 + 0.5).toFixed(1);
+  const diskWrite = Math.floor(Math.random() * 450 + 200);
+
+  // Update UI Elements
+  const cpuEl = document.getElementById('val-cpu');
+  if (cpuEl) cpuEl.textContent = newCPU.toFixed(1) + '%';
+  const barCpu = document.getElementById('bar-cpu');
+  if (barCpu) barCpu.style.width = newCPU.toFixed(1) + '%';
+
+  const ramEl = document.getElementById('val-ram');
+  const ramGB = ((newRAM / 100) * 32).toFixed(1);
+  if (ramEl) ramEl.textContent = `${ramGB} GB / 32 GB`;
+  const barRam = document.getElementById('bar-ram');
+  if (barRam) barRam.style.width = newRAM.toFixed(1) + '%';
+
+  // Load Average calculation
+  const l1  = (newCPU * 0.022 + 0.1).toFixed(2);
+  const l5  = (newCPU * 0.019 + 0.12).toFixed(2);
+  const l15 = (newCPU * 0.016 + 0.15).toFixed(2);
+  const loadEl = document.getElementById('val-load');
+  if (loadEl) loadEl.textContent = `${l1} / ${l5} / ${l15}`;
+  const load1m = document.getElementById('load-1m');
+  const load5m = document.getElementById('load-5m');
+  const load15m = document.getElementById('load-15m');
+  if (load1m) load1m.textContent = l1;
+  if (load5m) load5m.textContent = l5;
+  if (load15m) load15m.textContent = l15;
+
+  // Network DOM
+  const rxEl = document.getElementById('val-rx');
+  const txEl = document.getElementById('val-tx');
+  if (rxEl) rxEl.textContent = newRX.toFixed(1) + ' MB/s';
+  if (txEl) txEl.textContent = newTX.toFixed(1) + ' MB/s';
+
+  // Disk DOM
+  const diskREl = document.getElementById('val-diskr');
+  const diskWEl = document.getElementById('val-diskw');
+  if (diskREl) diskREl.textContent = diskRead + ' MB/s';
+  if (diskWEl) diskWEl.textContent = diskWrite + ' KB/s';
+
+  // Cores Mini Grid
+  updateCoresMiniGrid();
+
+  // Render Canvas
+  renderCanvasChart();
+
+  // Refresh active drawer if open
+  refreshActiveDrawer();
+}
+
+function updateCoresMiniGrid() {
+  const container = document.getElementById('coreBarsMiniGrid');
+  if (!container) return;
+
+  container.innerHTML = coreUtilization.map((pct, idx) => `
+    <div class="core-cell">
+      <div class="core-cell-header">
+        <span class="core-cell-name">C${idx}</span>
+        <span class="core-cell-val">${pct.toFixed(0)}%</span>
+      </div>
+      <div class="core-mini-track">
+        <div class="core-mini-fill" style="width: ${pct.toFixed(1)}%;"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─── High DPI Canvas Chart Rendering ────────────────────────────────────────
+function renderCanvasChart() {
+  const canvas = document.getElementById('demoCanvas');
+  if (!canvas) return;
+
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width === 0) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = rect.width;
+  const h = rect.height || 190;
+
+  // Scale canvas resolution to physical pixels for crisp edges
+  canvas.width = Math.floor(w * dpr);
+  canvas.height = Math.floor(h * dpr);
+
+  const ctx = canvas.getContext('2d');
+  ctx.save();
+  ctx.scale(dpr, dpr);
 
   ctx.clearRect(0, 0, w, h);
 
-  // Grid lines
-  ctx.strokeStyle = '#1d1d1d';
+  // Background Grid Lines & Scale Markers
+  const gridLines = 4;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
   ctx.lineWidth = 1;
-  for (let i = 1; i < 4; i++) {
-    const y = (h / 4) * i;
+  ctx.font = '10px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#94a3b8';
+
+  for (let i = 0; i <= gridLines; i++) {
+    const y = Math.floor((h / gridLines) * i);
+    const pct = 100 - (i * 25);
+
     ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(w, y);
+    ctx.moveTo(35, y === 0 ? 1 : y);
+    ctx.lineTo(w, y === 0 ? 1 : y);
     ctx.stroke();
+
+    ctx.fillText(`${pct}%`, 4, y === 0 ? 10 : (y === h ? y - 4 : y + 3));
   }
 
-  drawSeries(ctx, w, h, ram, '#10b981', 'rgba(16,185,129,0.10)');
-  drawSeries(ctx, w, h, cpu, '#f59e0b', 'rgba(245,158,11,0.13)');
+  // Draw RAM Series (Emerald)
+  drawSmoothSeries(ctx, w, h, ramHistory, '#10b981', 'rgba(16, 185, 129, 0.12)');
+
+  // Draw CPU Series (Amber)
+  drawSmoothSeries(ctx, w, h, cpuHistory, '#f59e0b', 'rgba(245, 158, 11, 0.15)');
+
+  ctx.restore();
 }
 
-function drawSeries(ctx, w, h, data, strokeColor, fillColor) {
-  const step   = w / (data.length - 1);
-  const pad    = 8;
-  const usable = h - pad * 2;
+function drawSmoothSeries(ctx, w, h, data, strokeColor, fillColor) {
+  const leftPad = 35;
+  const usableW = w - leftPad;
+  const usableH = h - 16;
+  const step = usableW / (data.length - 1);
 
   ctx.beginPath();
-  ctx.moveTo(0, pad + usable - (data[0] / 100) * usable);
+  const firstY = 8 + usableH - (data[0] / 100) * usableH;
+  ctx.moveTo(leftPad, firstY);
 
   for (let i = 1; i < data.length; i++) {
-    const x0 = (i - 1) * step;
-    const y0 = pad + usable - (data[i - 1] / 100) * usable;
-    const x1 = i * step;
-    const y1 = pad + usable - (data[i] / 100) * usable;
+    const x0 = leftPad + (i - 1) * step;
+    const y0 = 8 + usableH - (data[i - 1] / 100) * usableH;
+    const x1 = leftPad + i * step;
+    const y1 = 8 + usableH - (data[i] / 100) * usableH;
     const cpx = (x0 + x1) / 2;
     ctx.bezierCurveTo(cpx, y0, cpx, y1, x1, y1);
   }
@@ -212,38 +649,57 @@ function drawSeries(ctx, w, h, data, strokeColor, fillColor) {
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Fill
+  // Fill gradient
   ctx.lineTo(w, h);
-  ctx.lineTo(0, h);
+  ctx.lineTo(leftPad, h);
   ctx.closePath();
 
   const grad = ctx.createLinearGradient(0, 0, 0, h);
   grad.addColorStop(0, fillColor);
-  grad.addColorStop(1, 'transparent');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
   ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Live tip point
+  const lastIndex = data.length - 1;
+  const lastX = leftPad + lastIndex * step;
+  const lastY = 8 + usableH - (data[lastIndex] / 100) * usableH;
+
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = strokeColor;
   ctx.fill();
 }
 
-// ─── Sparkline (mini canvas) ────────────────────────────────────────────────
-
+// ─── Sparklines for Drawers ─────────────────────────────────────────────────
 function drawSparkline(canvas, data, color) {
   if (!canvas) return;
-  const w = canvas.width  = canvas.offsetWidth || 300;
-  const h = canvas.height = 60;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.offsetWidth || 340;
+  const h = 60;
+
+  canvas.width = Math.floor(w * dpr);
+  canvas.height = Math.floor(h * dpr);
+
   const ctx = canvas.getContext('2d');
+  ctx.save();
+  ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
 
-  const max  = Math.max(...data, 1);
+  const max = Math.max(...data, 1);
   const step = w / (data.length - 1);
-  const pad  = 4;
+  const pad = 4;
+  const usableH = h - pad * 2;
 
   ctx.beginPath();
-  ctx.moveTo(0, pad + (h - pad * 2) - (data[0] / max) * (h - pad * 2));
+  ctx.moveTo(0, pad + usableH - (data[0] / max) * usableH);
+
   for (let i = 1; i < data.length; i++) {
     const x = i * step;
-    const y = pad + (h - pad * 2) - (data[i] / max) * (h - pad * 2);
+    const y = pad + usableH - (data[i] / max) * usableH;
     ctx.lineTo(x, y);
   }
+
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.5;
   ctx.stroke();
@@ -251,256 +707,308 @@ function drawSparkline(canvas, data, color) {
   ctx.lineTo(w, h);
   ctx.lineTo(0, h);
   ctx.closePath();
-  ctx.fillStyle = color.replace(')', ', 0.10)').replace('rgb', 'rgba');
+  ctx.fillStyle = color.replace(')', ', 0.12)').replace('rgb', 'rgba');
   ctx.fill();
+
+  ctx.restore();
 }
 
-// ─── Drawer ─────────────────────────────────────────────────────────────────
-
-let currentDrawerMetric = null;
-let currentDrawerExtra  = null;
+// ─── Drawer Modal Controller ────────────────────────────────────────────────
+let activeDrawerType = null;
+let activeDrawerContext = null;
 
 function initDrawer() {
   const overlay = document.getElementById('drawer-overlay');
   const closeBtn = document.getElementById('drawer-close');
 
-  overlay.addEventListener('click', e => {
+  if (!overlay) return;
+
+  overlay.addEventListener('click', (e) => {
     if (e.target === overlay) closeDrawer();
   });
-  closeBtn.addEventListener('click', closeDrawer);
 
-  document.addEventListener('keydown', e => {
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeDrawer);
+  }
+
+  document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeDrawer();
   });
 }
 
-function openDrawer(metric, extra = null) {
-  currentDrawerMetric = metric;
-  currentDrawerExtra  = extra;
+function openDrawer(type, context = null) {
+  activeDrawerType = type;
+  activeDrawerContext = context;
 
-  renderDrawerContent(metric, extra);
+  renderDrawerBody(type, context);
 
   const overlay = document.getElementById('drawer-overlay');
   overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
 }
 
 function closeDrawer() {
-  document.getElementById('drawer-overlay').classList.remove('open');
+  const overlay = document.getElementById('drawer-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
-  currentDrawerMetric = null;
-  currentDrawerExtra  = null;
+  activeDrawerType = null;
+  activeDrawerContext = null;
 }
 
-function refreshDrawer() {
-  if (!currentDrawerMetric) return;
-  renderDrawerContent(currentDrawerMetric, currentDrawerExtra);
+function refreshActiveDrawer() {
+  if (!activeDrawerType) return;
+  renderDrawerBody(activeDrawerType, activeDrawerContext);
 }
 
-function renderDrawerContent(metric, extra) {
-  const title = document.getElementById('drawer-title');
-  const body  = document.getElementById('drawer-body');
+function renderDrawerBody(type, context) {
+  const titleEl = document.getElementById('drawer-title');
+  const bodyEl  = document.getElementById('drawer-body');
+  if (!titleEl || !bodyEl) return;
 
-  switch (metric) {
-    case 'cpu':  renderCPUDrawer(title, body);  break;
-    case 'ram':  renderRAMDrawer(title, body);  break;
-    case 'net':  renderNetDrawer(title, body);  break;
-    case 'disk': renderDiskDrawer(title, body); break;
-    case 'proc': renderProcDrawer(title, body, extra); break;
-    default: break;
+  switch (type) {
+    case 'cpu':
+      renderCpuDrawer(titleEl, bodyEl);
+      break;
+    case 'ram':
+      renderRamDrawer(titleEl, bodyEl);
+      break;
+    case 'net':
+      renderNetDrawer(titleEl, bodyEl);
+      break;
+    case 'disk':
+      renderDiskDrawer(titleEl, bodyEl);
+      break;
+    case 'proc':
+      renderProcDrawer(titleEl, bodyEl, context);
+      break;
+    default:
+      break;
   }
 }
 
-function renderCPUDrawer(title, body) {
-  title.textContent = 'CPU — Per-Core Utilization';
-  const currentCPU = cpuData[cpuData.length - 1];
+function renderCpuDrawer(titleEl, bodyEl) {
+  titleEl.textContent = 'CPU: Core Telemetry and Utilization';
+  const curCPU = cpuHistory[cpuHistory.length - 1];
 
-  body.innerHTML = `
+  bodyEl.innerHTML = `
     <div class="drawer-section">
-      <div class="drawer-section-title">Total CPU</div>
-      <div style="font-size: 2rem; font-weight: 700; font-family: var(--font-mono); color: var(--accent-cpu); margin-bottom: 0.5rem;">
-        ${currentCPU.toFixed(1)}%
+      <div class="drawer-section-title">Total CPU Utilization</div>
+      <div style="font-size: 2.2rem; font-weight: 800; font-family: var(--font-mono); color: var(--accent-cpu); margin-bottom: 0.5rem;">
+        ${curCPU.toFixed(1)}%
       </div>
-      <div class="progress-track"><div class="progress-fill progress-fill--cpu" style="width: ${currentCPU}%;"></div></div>
+      <div class="progress-track"><div class="progress-fill progress-fill--cpu" style="width: ${curCPU.toFixed(1)}%;"></div></div>
     </div>
+
     <div class="drawer-section">
-      <div class="drawer-section-title">Per-Core Breakdown</div>
-      ${coreData.map((pct, i) => `
-        <div class="core-bar-row">
-          <span class="core-bar-label">Core ${i}</span>
-          <div class="core-bar-track"><div class="core-bar-fill" style="width: ${pct.toFixed(1)}%;"></div></div>
-          <span class="core-bar-pct">${pct.toFixed(1)}%</span>
-        </div>
-      `).join('')}
+      <div class="drawer-section-title">8 Logical Cores Breakdown (/proc/stat)</div>
+      <div class="drawer-grid">
+        ${coreUtilization.map((val, idx) => `
+          <div class="drawer-row">
+            <span class="drawer-row-lbl">Core ${idx}</span>
+            <div style="flex:1; margin: 0 1rem; height: 5px; background: rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+              <div style="height:100%; width:${val.toFixed(1)}%; background:var(--accent-cpu);"></div>
+            </div>
+            <span class="drawer-row-val">${val.toFixed(1)}%</span>
+          </div>
+        `).join('')}
+      </div>
     </div>
+
     <div class="drawer-section">
-      <div class="drawer-section-title">60-Second Trend</div>
-      <canvas class="sparkline-canvas" id="sparkline-cpu"></canvas>
+      <div class="drawer-section-title">60-Second CPU Activity Trend</div>
+      <canvas class="sparkline-canvas" id="spark-cpu"></canvas>
     </div>
   `;
 
-  // Draw sparkline with last 20 cpu points
   requestAnimationFrame(() => {
-    drawSparkline(document.getElementById('sparkline-cpu'), cpuData.slice(-20), '#f59e0b');
+    drawSparkline(document.getElementById('spark-cpu'), cpuHistory.slice(-25), '#f59e0b');
   });
 }
 
-function renderRAMDrawer(title, body) {
-  title.textContent = 'RAM — Memory Breakdown';
-  const ramPct  = ramData[ramData.length - 1];
-  const ramUsed = (ramPct / 100) * 16;
-  const buffers = +(ramUsed * 0.12).toFixed(2);
-  const cached  = +(ramUsed * 0.28).toFixed(2);
-  const used    = +(ramUsed - buffers - cached).toFixed(2);
-  const free    = +(16 - ramUsed).toFixed(2);
+function renderRamDrawer(titleEl, bodyEl) {
+  titleEl.textContent = 'RAM: Memory Distribution (/proc/meminfo)';
+  const curRAM = ramHistory[ramHistory.length - 1];
+  const totalGB = 32.0;
+  const usedGB  = (curRAM / 100) * totalGB;
+  const cachedGB = (usedGB * 0.35).toFixed(2);
+  const bufferGB = (usedGB * 0.10).toFixed(2);
+  const appGB    = (usedGB - parseFloat(cachedGB) - parseFloat(bufferGB)).toFixed(2);
+  const freeGB   = (totalGB - usedGB).toFixed(2);
 
-  body.innerHTML = `
+  bodyEl.innerHTML = `
     <div class="drawer-section">
-      <div style="font-size: 1.8rem; font-weight: 700; font-family: var(--font-mono); color: var(--accent-ram); margin-bottom: 0.5rem;">
-        ${ramUsed.toFixed(1)} GB <span style="font-size: 1rem; color: var(--text-dim);">/ 16 GB</span>
+      <div class="drawer-section-title">Total Allocated Memory</div>
+      <div style="font-size: 2.2rem; font-weight: 800; font-family: var(--font-mono); color: var(--accent-ram); margin-bottom: 0.5rem;">
+        ${usedGB.toFixed(1)} GB <span style="font-size: 1rem; color: var(--text-dim);">/ 32.0 GB</span>
       </div>
-      <div class="progress-track"><div class="progress-fill progress-fill--ram" style="width: ${ramPct}%;"></div></div>
+      <div class="progress-track"><div class="progress-fill progress-fill--ram" style="width: ${curRAM.toFixed(1)}%;"></div></div>
     </div>
+
     <div class="drawer-section">
-      <div class="drawer-section-title">Memory Segments</div>
-      <div class="mem-breakdown">
-        <div class="mem-row">
-          <span class="mem-row-label">Used (applications)</span>
-          <span class="mem-row-value">${used} GB</span>
+      <div class="drawer-section-title">Kernel Memory Segments</div>
+      <div class="drawer-grid">
+        <div class="drawer-row">
+          <span class="drawer-row-lbl">Application Memory (Active)</span>
+          <span class="drawer-row-val">${appGB} GB</span>
         </div>
-        <div class="mem-row">
-          <span class="mem-row-label">Buffers</span>
-          <span class="mem-row-value">${buffers} GB</span>
+        <div class="drawer-row">
+          <span class="drawer-row-lbl">VFS Page Cache (Cached)</span>
+          <span class="drawer-row-val text-net">${cachedGB} GB</span>
         </div>
-        <div class="mem-row">
-          <span class="mem-row-label">Cached</span>
-          <span class="mem-row-value">${cached} GB</span>
+        <div class="drawer-row">
+          <span class="drawer-row-lbl">I/O Buffers (Buffers)</span>
+          <span class="drawer-row-val text-disk">${bufferGB} GB</span>
         </div>
-        <div class="mem-row" style="border-color: var(--accent-ram); border-opacity: 0.3;">
-          <span class="mem-row-label">Free</span>
-          <span class="mem-row-value" style="color: var(--accent-ram);">${free} GB</span>
+        <div class="drawer-row">
+          <span class="drawer-row-lbl">Available Memory (MemFree)</span>
+          <span class="drawer-row-val text-ram">${freeGB} GB</span>
         </div>
       </div>
     </div>
+
     <div class="drawer-section">
-      <div class="drawer-section-title">60-Second Trend</div>
-      <canvas class="sparkline-canvas" id="sparkline-ram"></canvas>
+      <div class="drawer-section-title">Memory Allocation Trend</div>
+      <canvas class="sparkline-canvas" id="spark-ram"></canvas>
     </div>
   `;
 
   requestAnimationFrame(() => {
-    drawSparkline(document.getElementById('sparkline-ram'), ramData.slice(-20), '#10b981');
+    drawSparkline(document.getElementById('spark-ram'), ramHistory.slice(-25), '#10b981');
   });
 }
 
-function renderNetDrawer(title, body) {
-  title.textContent = 'Network — Interface Throughput';
+function renderNetDrawer(titleEl, bodyEl) {
+  titleEl.textContent = 'Network: Interface Telemetry (/proc/net/dev)';
 
-  body.innerHTML = `
+  bodyEl.innerHTML = `
     <div class="drawer-section">
-      <div class="drawer-section-title">eth0</div>
-      <div class="net-row">
-        <span class="net-iface">eth0</span>
-        <div class="net-stat">
-          <span class="net-stat-label">RX</span>
-          <span class="net-stat-value">${rxHistory[rxHistory.length - 1].toFixed(1)} MB/s</span>
+      <div class="drawer-section-title">eth0: 2.5 GbE Primary LAN Interface</div>
+      <div class="drawer-grid">
+        <div class="drawer-row">
+          <span class="drawer-row-lbl">Receive Throughput (RX Rate)</span>
+          <span class="drawer-row-val text-net">${rxBuffer[rxBuffer.length - 1].toFixed(1)} MB/s</span>
         </div>
-        <div class="net-stat">
-          <span class="net-stat-label">TX</span>
-          <span class="net-stat-value">${txHistory[txHistory.length - 1].toFixed(1)} MB/s</span>
+        <div class="drawer-row">
+          <span class="drawer-row-lbl">Transmit Throughput (TX Rate)</span>
+          <span class="drawer-row-val text-disk">${txBuffer[txBuffer.length - 1].toFixed(1)} MB/s</span>
+        </div>
+        <div class="drawer-row">
+          <span class="drawer-row-lbl">Packet Drops</span>
+          <span class="drawer-row-val text-ram">0 pkts/s</span>
+        </div>
+        <div class="drawer-row">
+          <span class="drawer-row-lbl">MTU Configuration</span>
+          <span class="drawer-row-val">1500 Bytes</span>
         </div>
       </div>
     </div>
+
     <div class="drawer-section">
-      <div class="drawer-section-title">RX Trend (last 20 ticks)</div>
-      <canvas class="sparkline-canvas" id="sparkline-rx"></canvas>
+      <div class="drawer-section-title">RX Traffic History</div>
+      <canvas class="sparkline-canvas" id="spark-rx"></canvas>
     </div>
+
     <div class="drawer-section">
-      <div class="drawer-section-title">TX Trend (last 20 ticks)</div>
-      <canvas class="sparkline-canvas" id="sparkline-tx"></canvas>
+      <div class="drawer-section-title">TX Traffic History</div>
+      <canvas class="sparkline-canvas" id="spark-tx"></canvas>
     </div>
   `;
 
   requestAnimationFrame(() => {
-    drawSparkline(document.getElementById('sparkline-rx'), rxHistory, '#38bdf8');
-    drawSparkline(document.getElementById('sparkline-tx'), txHistory, '#a78bfa');
+    drawSparkline(document.getElementById('spark-rx'), rxBuffer, '#38bdf8');
+    drawSparkline(document.getElementById('spark-tx'), txBuffer, '#a78bfa');
   });
 }
 
-function renderDiskDrawer(title, body) {
-  title.textContent = 'Disk — Storage & I/O';
+function renderDiskDrawer(titleEl, bodyEl) {
+  titleEl.textContent = 'Storage: Local Pools and I/O (/proc/diskstats)';
 
-  body.innerHTML = `
+  bodyEl.innerHTML = `
     <div class="drawer-section">
-      <div class="drawer-section-title">Partitions</div>
-      <div style="font-family: var(--font-mono); font-size: 0.83rem;">
-        <div class="disk-row" style="display:flex; justify-content:space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
-          <span style="color: var(--text-dim); width: 70px;">/dev/sda1</span>
-          <span style="color: var(--accent-cpu);">38.2%</span>
-          <span>76.4 GB / 200 GB</span>
+      <div class="drawer-section-title">Mounted Storage Pools</div>
+      <div class="drawer-grid">
+        <div class="drawer-row">
+          <span class="drawer-row-lbl">/dev/nvme0n1p2 (/)</span>
+          <span class="drawer-row-val">174 GB / 500 GB (34.8%)</span>
         </div>
-        <div class="disk-row" style="display:flex; justify-content:space-between; padding: 0.5rem 0;">
-          <span style="color: var(--text-dim); width: 70px;">/dev/sdb1</span>
-          <span style="color: var(--accent-ram);">12.5%</span>
-          <span>25 GB / 200 GB</span>
+        <div class="drawer-row">
+          <span class="drawer-row-lbl">/dev/sda1 (/mnt/data)</span>
+          <span class="drawer-row-val">964 GB / 2 TB (48.2%)</span>
+        </div>
+        <div class="drawer-row">
+          <span class="drawer-row-lbl">/dev/sdb1 (/mnt/tank)</span>
+          <span class="drawer-row-val">5.4 TB / 8 TB (68.5%)</span>
         </div>
       </div>
     </div>
+
     <div class="drawer-section">
-      <div class="drawer-section-title">Read/Write I/O (sda)</div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem;">
-        <div class="mem-row">
-          <span class="mem-row-label">Read</span>
-          <span class="mem-row-value" style="color: var(--accent-net);">${(Math.random() * 2).toFixed(1)} KB/s</span>
+      <div class="drawer-section-title">NVMe Storage I/O Rates</div>
+      <div class="drawer-grid">
+        <div class="drawer-row">
+          <span class="drawer-row-lbl">Read Bandwidth</span>
+          <span class="drawer-row-val text-net">2.4 MB/s</span>
         </div>
-        <div class="mem-row">
-          <span class="mem-row-label">Write</span>
-          <span class="mem-row-value" style="color: var(--accent-disk);">${(Math.random() * 1).toFixed(1)} KB/s</span>
+        <div class="drawer-row">
+          <span class="drawer-row-lbl">Write Bandwidth</span>
+          <span class="drawer-row-val text-disk">480 KB/s</span>
         </div>
       </div>
-      <canvas class="sparkline-canvas" id="sparkline-disk"></canvas>
     </div>
   `;
-
-  requestAnimationFrame(() => {
-    const fakeIO = Array(20).fill(0).map(() => Math.random() * 3);
-    drawSparkline(document.getElementById('sparkline-disk'), fakeIO, '#a78bfa');
-  });
 }
 
-function renderProcDrawer(title, body, extra) {
-  const name = extra?.name || 'process';
-  const pid  = extra?.pid  || '???';
-  title.textContent = `Process — ${name} (PID ${pid})`;
+function renderProcDrawer(titleEl, bodyEl, context) {
+  const pid  = context?.pid  || '1042';
+  const meta = HOMELAB_SERVICES[pid] || {
+    name: context?.name || 'statix',
+    cmdline: `/usr/local/bin/${context?.name || 'statix'}`,
+    user: context?.user || 'statix',
+    uid: '1001',
+    gid: '1001',
+    state: 'S (Interruptible Sleep)',
+    cpu: context?.cpu || '0.1',
+    rss: context?.rss || '18.2 MB',
+    vmsize: '28.4 MB',
+    threads: 6,
+    fds: 18,
+    statusText: `Name:\t${context?.name || 'statix'}
+State:\tS (sleeping)
+Pid:\t${pid}
+VmSize:\t   28410 kB
+VmRSS:\t   ${context?.rss || '18240 kB'}
+Threads:\t6`
+  };
 
-  const fakeCPU = (Math.random() * 5).toFixed(2);
-  const fakeRSS = (Math.random() * 200 + 10).toFixed(1);
-  const fakeFDs = Math.floor(Math.random() * 30 + 5);
+  titleEl.textContent = `Process Inspector: ${meta.name} (PID: ${pid})`;
 
-  body.innerHTML = `
+  bodyEl.innerHTML = `
     <div class="drawer-section">
-      <div class="mem-breakdown">
-        <div class="mem-row"><span class="mem-row-label">PID</span><span class="mem-row-value">${pid}</span></div>
-        <div class="mem-row"><span class="mem-row-label">Name</span><span class="mem-row-value" style="color: var(--accent-proc);">${name}</span></div>
-        <div class="mem-row"><span class="mem-row-label">State</span><span class="mem-row-value">S (sleeping)</span></div>
-        <div class="mem-row"><span class="mem-row-label">CPU %</span><span class="mem-row-value" style="color: var(--accent-cpu);">${fakeCPU}%</span></div>
-        <div class="mem-row"><span class="mem-row-label">RSS</span><span class="mem-row-value" style="color: var(--accent-ram);">${fakeRSS} MB</span></div>
-        <div class="mem-row"><span class="mem-row-label">Open FDs</span><span class="mem-row-value">${fakeFDs}</span></div>
+      <div class="drawer-section-title">Process Identity and Resource Allocation</div>
+      <div class="drawer-grid">
+        <div class="drawer-row"><span class="drawer-row-lbl">PID</span><span class="drawer-row-val">${pid}</span></div>
+        <div class="drawer-row"><span class="drawer-row-lbl">Service</span><span class="drawer-row-val text-proc">${meta.name}</span></div>
+        <div class="drawer-row"><span class="drawer-row-lbl">User (UID:GID)</span><span class="drawer-row-val">${meta.user} (${meta.uid}:${meta.gid})</span></div>
+        <div class="drawer-row"><span class="drawer-row-lbl">State</span><span class="drawer-row-val">${meta.state}</span></div>
+        <div class="drawer-row"><span class="drawer-row-lbl">CPU Utilization</span><span class="drawer-row-val text-cpu">${meta.cpu}%</span></div>
+        <div class="drawer-row"><span class="drawer-row-lbl">Physical Memory (VmRSS)</span><span class="drawer-row-val text-ram">${meta.rss}</span></div>
+        <div class="drawer-row"><span class="drawer-row-lbl">Virtual Memory (VmSize)</span><span class="drawer-row-val">${meta.vmsize}</span></div>
+        <div class="drawer-row"><span class="drawer-row-lbl">Active Threads</span><span class="drawer-row-val">${meta.threads}</span></div>
+        <div class="drawer-row"><span class="drawer-row-lbl">Open File Descriptors (FDs)</span><span class="drawer-row-val">${meta.fds}</span></div>
       </div>
     </div>
+
     <div class="drawer-section">
-      <div class="drawer-section-title">CPU History</div>
-      <canvas class="sparkline-canvas" id="sparkline-proc"></canvas>
+      <div class="drawer-section-title">Execution Command</div>
+      <div class="raw-proc-box text-mono">${meta.cmdline}</div>
     </div>
+
     <div class="drawer-section">
-      <div class="drawer-section-title" style="color: var(--text-dim); font-style: italic;">
-        Process tree requires ppid field — available in live dashboard
-      </div>
+      <div class="drawer-section-title">Kernel /proc/${pid}/status Header Extract</div>
+      <div class="raw-proc-box">${meta.statusText}</div>
     </div>
   `;
-
-  requestAnimationFrame(() => {
-    const history = Array(20).fill(0).map(() => Math.random() * parseFloat(fakeCPU) * 2);
-    drawSparkline(document.getElementById('sparkline-proc'), history, '#fb7185');
-  });
 }

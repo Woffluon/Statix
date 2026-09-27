@@ -1,4 +1,4 @@
-{{define "title"}}Setup Wizard — Statix{{end}}
+{{define "title"}}Setup Wizard: Statix{{end}}
 {{define "content"}}
 <div class="card center-card" style="max-width: 550px;">
   <div class="card-title" style="justify-content: center; font-size: 1.5rem; margin-bottom: 0.5rem;">
@@ -44,6 +44,7 @@
       <div class="form-group" style="margin-bottom:0;">
         <label class="form-label" for="listen_addr">Listen Address</label>
         <input type="text" id="listen_addr" name="listen_addr" class="form-input" value="{{if .ListenAddr}}{{.ListenAddr}}{{else}}:8080{{end}}" required>
+        {{if .ListenAddrError}}<div class="form-error">{{.ListenAddrError}}</div>{{end}}
         <span style="font-size:0.75rem; color:var(--text-muted);">Default is :8080</span>
       </div>
     </div>

@@ -155,6 +155,7 @@ func main() {
 		Buffer:     buffer,
 		Collector:  collector,
 		Logger:     logger,
+		Version:    version,
 	})
 	if err != nil {
 		_ = ln.Close()

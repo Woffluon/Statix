@@ -44,3 +44,25 @@ type Snapshot struct {
 	Networks    []NetStat     `json:"networks"`
 	Processes   []ProcessStat `json:"processes"`
 }
+
+// Clone returns a deep defensive copy of Snapshot and its nested slices.
+func (s Snapshot) Clone() Snapshot {
+	out := s
+	if s.CPU != nil {
+		out.CPU = make([]CPUStat, len(s.CPU))
+		copy(out.CPU, s.CPU)
+	}
+	if s.Disks != nil {
+		out.Disks = make([]DiskStat, len(s.Disks))
+		copy(out.Disks, s.Disks)
+	}
+	if s.Networks != nil {
+		out.Networks = make([]NetStat, len(s.Networks))
+		copy(out.Networks, s.Networks)
+	}
+	if s.Processes != nil {
+		out.Processes = make([]ProcessStat, len(s.Processes))
+		copy(out.Processes, s.Processes)
+	}
+	return out
+}

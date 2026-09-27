@@ -155,7 +155,12 @@ func collectProcesses(procRoot string, prevCPU map[int]procCPURaw, _ float64, no
 		if prev, ok := prevCPU[pid]; ok {
 			deltaTime := nowSec - prev.timeSec
 			if deltaTime > 0 {
-				deltaTicks := float64((utime + stime) - (prev.utime + prev.stime))
+				currTotal := utime + stime
+				prevTotal := prev.utime + prev.stime
+				var deltaTicks float64
+				if currTotal > prevTotal {
+					deltaTicks = float64(currTotal - prevTotal)
+				}
 				// 100.0 clock ticks per second standard
 				cpuPct = (deltaTicks / 100.0) / deltaTime * 100.0
 			}

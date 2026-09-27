@@ -11,6 +11,7 @@ import (
 type dashboardPageData struct {
 	CSRFToken   string
 	ShowHeader  bool
+	Version     string
 	Snapshot    metrics.Snapshot
 	InitialJSON template.JS
 }
@@ -24,6 +25,7 @@ func (s *Server) handleDashboardGet(w http.ResponseWriter, r *http.Request) {
 	data := dashboardPageData{
 		CSRFToken:   csrfToken,
 		ShowHeader:  true,
+		Version:     s.version,
 		Snapshot:    latest,
 		InitialJSON: template.JS(jsonData),
 	}

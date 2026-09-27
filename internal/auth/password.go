@@ -62,6 +62,15 @@ func VerifyPassword(password, encodedHash string) (bool, error) {
 		return false, fmt.Errorf("auth: failed to parse argon2 parameters")
 	}
 
+	const (
+		maxMemory      = 256 * 1024 // 256 MB
+		maxIterations  = 10
+		maxParallelism = 16
+	)
+	if memory > maxMemory || iterations > maxIterations || parallelism > maxParallelism || memory == 0 || iterations == 0 || parallelism == 0 {
+		return false, fmt.Errorf("auth: argon2 parameters exceed allowed bounds")
+	}
+
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
 		return false, fmt.Errorf("auth: failed to decode salt")

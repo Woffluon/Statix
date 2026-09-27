@@ -66,31 +66,12 @@ func CSRF(next http.Handler) http.Handler {
 			}
 
 			cookie, err := r.Cookie("statix_csrf")
-			cookieVal := ""
-			if err == nil {
-				cookieVal = cookie.Value
-			}
-
-			if cookieVal == "" {
-				// Resiliency fallback: if browser dropped cookie but valid 64-char hex form token exists, auto-repair cookie
-				if len(formOrHeader) == 64 {
-					isSecureReq := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
-					http.SetCookie(w, &http.Cookie{
-						Name:     "statix_csrf",
-						Value:    formOrHeader,
-						Path:     "/",
-						HttpOnly: false,
-						SameSite: http.SameSiteLaxMode,
-						Secure:   isSecureReq,
-					})
-					next.ServeHTTP(w, r)
-					return
-				}
+			if err != nil || cookie.Value == "" {
 				http.Error(w, "CSRF token missing or invalid", http.StatusForbidden)
 				return
 			}
 
-			if !ValidateCSRFToken(cookieVal, formOrHeader) {
+			if formOrHeader == "" || !ValidateCSRFToken(cookie.Value, formOrHeader) {
 				http.Error(w, "CSRF token mismatch", http.StatusForbidden)
 				return
 			}

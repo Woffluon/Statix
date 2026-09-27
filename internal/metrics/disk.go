@@ -64,6 +64,36 @@ func parseDiskStats(r io.Reader) ([]diskRaw, error) {
 	return stats, nil
 }
 
+func isPrimaryDisk(dev string) bool {
+	for _, prefix := range []string{"sd", "vd", "xvd", "hd"} {
+		if strings.HasPrefix(dev, prefix) {
+			suffix := strings.TrimPrefix(dev, prefix)
+			if len(suffix) > 0 && !containsDigit(suffix) {
+				return true
+			}
+		}
+	}
+	if strings.HasPrefix(dev, "nvme") && strings.Contains(dev, "n") && !strings.Contains(dev, "p") {
+		return true
+	}
+	if strings.HasPrefix(dev, "mmcblk") && !strings.Contains(dev, "p") {
+		return true
+	}
+	if strings.HasPrefix(dev, "dm-") || strings.HasPrefix(dev, "md") {
+		return true
+	}
+	return false
+}
+
+func containsDigit(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= '0' && s[i] <= '9' {
+			return true
+		}
+	}
+	return false
+}
+
 func computeDiskIO(prev, curr []diskRaw, interval time.Duration, sfn statfsFunc) []DiskStat {
 	if sfn == nil {
 		sfn = defaultStatfs
@@ -79,6 +109,15 @@ func computeDiskIO(prev, curr []diskRaw, interval time.Duration, sfn statfsFunc)
 		secs = 1.0
 	}
 
+	var rootUsedPct float64
+	var hasRootUsage bool
+	total, free, err := sfn("/")
+	if err == nil && total > 0 {
+		used := total - free
+		rootUsedPct = (float64(used) / float64(total)) * 100.0
+		hasRootUsage = true
+	}
+
 	result := make([]DiskStat, 0, len(curr))
 	for _, c := range curr {
 		var readBps, writeBps float64
@@ -92,12 +131,8 @@ func computeDiskIO(prev, curr []diskRaw, interval time.Duration, sfn statfsFunc)
 		}
 
 		var usedPct float64
-		if c.Device == "sda" || c.Device == "vda" || c.Device == "nvme0n1" {
-			total, free, err := sfn("/")
-			if err == nil && total > 0 {
-				used := total - free
-				usedPct = (float64(used) / float64(total)) * 100.0
-			}
+		if hasRootUsage && (isPrimaryDisk(c.Device) || len(curr) == 1) {
+			usedPct = rootUsedPct
 		}
 
 		result = append(result, DiskStat{

@@ -16,6 +16,7 @@
   <script src="/static/js/htmx.min.js"></script>
   <script src="/static/js/uplot.min.js"></script>
   <script defer src="/static/js/alpine.min.js"></script>
+  <style>[x-cloak] { display: none !important; }</style>
 </head>
 <body>
   {{if .ShowHeader}}
@@ -28,6 +29,21 @@
     </div>
     <nav class="nav-links">
       <a href="/dashboard">Dashboard</a>
+
+      <!-- Update Available Badge -->
+      <button 
+        type="button" 
+        x-cloak 
+        x-show="$store.updater && $store.updater.available" 
+        @click="$store.updater.openModal()" 
+        class="badge-update"
+        id="btn-update-badge"
+        title="New version available! Click to inspect and update"
+      >
+        <span class="badge-update-dot"></span>
+        <span>Update Available: <strong x-text="$store.updater.displayVersion"></strong></span>
+      </button>
+
       <form action="/logout" method="POST" class="inline-form">
         <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
         <button type="submit" class="btn btn-secondary" style="padding:0.35rem 0.75rem; font-size:0.875rem;">Logout</button>
@@ -39,6 +55,323 @@
   <main class="container">
     {{template "content" .}}
   </main>
+
+  {{if .ShowHeader}}
+  <!-- Update Modal Dialog -->
+  <div 
+    x-cloak 
+    x-show="$store.updater && $store.updater.modalOpen" 
+    class="modal-backdrop"
+    id="update-modal-dialog"
+    @keydown.escape.window="$store.updater.closeModal()"
+  >
+    <div class="modal-window" @click.outside="$store.updater.closeModal()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Update Statix
+        </div>
+        <button 
+          type="button" 
+          class="modal-close" 
+          @click="$store.updater.closeModal()" 
+          :disabled="$store.updater.isApplying && $store.updater.step < 6"
+          title="Close modal"
+        >&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Version Diff Summary -->
+        <div class="version-diff-card">
+          <div class="version-col">
+            <span class="version-label">Current Version</span>
+            <span class="version-val current" x-text="$store.updater.currentVersion || 'dev'">dev</span>
+          </div>
+          <div class="version-arrow">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </div>
+          <div class="version-col">
+            <span class="version-label">Available Release</span>
+            <span class="version-val target" x-text="$store.updater.displayVersion">v...</span>
+          </div>
+        </div>
+
+        <!-- Release Notes Section -->
+        <template x-if="$store.updater.releaseNotes">
+          <div class="release-notes-wrapper">
+            <div class="release-notes-title">Release Notes</div>
+            <pre class="release-notes-content" x-text="$store.updater.releaseNotes"></pre>
+          </div>
+        </template>
+
+        <!-- Progress Stepper (Visible during & after apply) -->
+        <div x-show="$store.updater.isApplying || $store.updater.step > 0" class="stepper-container">
+          <div class="stepper-title">Installation Progress</div>
+          <div class="stepper">
+            <!-- Step 1: Downloading -->
+            <div class="step-item" :class="{
+              'step-completed': $store.updater.step > 1,
+              'step-active': $store.updater.step === 1,
+              'step-pending': $store.updater.step < 1,
+              'step-failed': $store.updater.step === 1 && $store.updater.error
+            }">
+              <div class="step-circle">
+                <template x-if="$store.updater.step > 1"><span>✓</span></template>
+                <template x-if="$store.updater.step === 1 && !$store.updater.error"><span class="step-spinner"></span></template>
+                <template x-if="$store.updater.step === 1 && $store.updater.error"><span>✕</span></template>
+                <template x-if="$store.updater.step < 1"><span>1</span></template>
+              </div>
+              <div class="step-content">
+                <div class="step-name">1. Downloading</div>
+                <div class="step-desc">Fetching latest production binary from GitHub</div>
+              </div>
+            </div>
+
+            <!-- Step 2: Verifying SHA-256 -->
+            <div class="step-item" :class="{
+              'step-completed': $store.updater.step > 2,
+              'step-active': $store.updater.step === 2,
+              'step-pending': $store.updater.step < 2,
+              'step-failed': $store.updater.step === 2 && $store.updater.error
+            }">
+              <div class="step-circle">
+                <template x-if="$store.updater.step > 2"><span>✓</span></template>
+                <template x-if="$store.updater.step === 2 && !$store.updater.error"><span class="step-spinner"></span></template>
+                <template x-if="$store.updater.step === 2 && $store.updater.error"><span>✕</span></template>
+                <template x-if="$store.updater.step < 2"><span>2</span></template>
+              </div>
+              <div class="step-content">
+                <div class="step-name">2. Verifying SHA-256</div>
+                <div class="step-desc">Cryptographically verifying artifact checksum</div>
+              </div>
+            </div>
+
+            <!-- Step 3: Installing -->
+            <div class="step-item" :class="{
+              'step-completed': $store.updater.step > 3,
+              'step-active': $store.updater.step === 3,
+              'step-pending': $store.updater.step < 3,
+              'step-failed': $store.updater.step === 3 && $store.updater.error
+            }">
+              <div class="step-circle">
+                <template x-if="$store.updater.step > 3"><span>✓</span></template>
+                <template x-if="$store.updater.step === 3 && !$store.updater.error"><span class="step-spinner"></span></template>
+                <template x-if="$store.updater.step === 3 && $store.updater.error"><span>✕</span></template>
+                <template x-if="$store.updater.step < 3"><span>3</span></template>
+              </div>
+              <div class="step-content">
+                <div class="step-name">3. Installing</div>
+                <div class="step-desc">Atomically staging and replacing binary (0755)</div>
+              </div>
+            </div>
+
+            <!-- Step 4: Restarting -->
+            <div class="step-item" :class="{
+              'step-completed': $store.updater.step > 4,
+              'step-active': $store.updater.step === 4,
+              'step-pending': $store.updater.step < 4
+            }">
+              <div class="step-circle">
+                <template x-if="$store.updater.step > 4"><span>✓</span></template>
+                <template x-if="$store.updater.step === 4"><span class="step-spinner"></span></template>
+                <template x-if="$store.updater.step < 4"><span>4</span></template>
+              </div>
+              <div class="step-content">
+                <div class="step-name">4. Restarting</div>
+                <div class="step-desc">Triggering service reload and graceful shutdown</div>
+              </div>
+            </div>
+
+            <!-- Step 5: Reconnecting -->
+            <div class="step-item" :class="{
+              'step-completed': $store.updater.step >= 6,
+              'step-active': $store.updater.step === 5,
+              'step-pending': $store.updater.step < 5
+            }">
+              <div class="step-circle">
+                <template x-if="$store.updater.step >= 6"><span>✓</span></template>
+                <template x-if="$store.updater.step === 5"><span class="step-spinner"></span></template>
+                <template x-if="$store.updater.step < 5"><span>5</span></template>
+              </div>
+              <div class="step-content">
+                <div class="step-name">5. Reconnecting</div>
+                <div class="step-desc" x-text="$store.updater.step >= 6 ? 'Reconnected! Reloading dashboard...' : 'Polling /healthz until service is online'"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error Message Banner -->
+        <template x-if="$store.updater.error">
+          <div class="banner banner-danger" style="margin-top: 1rem;">
+            <div>
+              <strong>Update Error:</strong>
+              <div x-text="$store.updater.error" style="font-size: 0.85rem; margin-top: 0.25rem;"></div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <div class="modal-footer">
+        <button 
+          type="button" 
+          class="btn btn-secondary" 
+          @click="$store.updater.closeModal()" 
+          :disabled="$store.updater.isApplying && $store.updater.step < 6"
+        >
+          Cancel
+        </button>
+
+        <button 
+          type="button" 
+          class="btn btn-update" 
+          @click="$store.updater.applyUpdate()" 
+          :disabled="$store.updater.isApplying"
+          x-show="$store.updater.step < 4"
+        >
+          <template x-if="!$store.updater.isApplying">
+            <span>Install &amp; Restart</span>
+          </template>
+          <template x-if="$store.updater.isApplying">
+            <span style="display:inline-flex; align-items:center; gap:0.5rem;">
+              <span class="step-spinner"></span> Updating...
+            </span>
+          </template>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.store('updater', {
+      available: false,
+      currentVersion: '{{.Version}}' || 'dev',
+      latestVersion: '',
+      displayVersion: '',
+      tagName: '',
+      releaseNotes: '',
+      publishedAt: '',
+      assetURL: '',
+      checksumURL: '',
+      modalOpen: false,
+      isApplying: false,
+      step: 0,
+      error: '',
+
+      async check() {
+        try {
+          const res = await fetch('/api/update/check', { credentials: 'same-origin' });
+          if (!res.ok) return;
+          const data = await res.json();
+          this.currentVersion = data.current_version || this.currentVersion;
+          if (data.update_available) {
+            this.available = true;
+            this.latestVersion = data.latest_version || '';
+            this.tagName = data.tag_name || '';
+            this.displayVersion = this.tagName || ('v' + this.latestVersion);
+            this.releaseNotes = data.release_notes || '';
+            this.publishedAt = data.published_at || '';
+            this.assetURL = data.asset_url || '';
+            this.checksumURL = data.checksum_url || '';
+          }
+        } catch (e) {
+          console.warn('Failed to check for updates:', e);
+        }
+      },
+
+      openModal() {
+        this.modalOpen = true;
+      },
+
+      closeModal() {
+        if (this.isApplying && this.step < 6) return;
+        this.modalOpen = false;
+      },
+
+      async applyUpdate() {
+        if (this.isApplying) return;
+        this.isApplying = true;
+        this.error = '';
+        this.step = 1; // Downloading
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        const stepTimer1 = setTimeout(() => { if (this.isApplying && this.step === 1) this.step = 2; }, 600);
+        const stepTimer2 = setTimeout(() => { if (this.isApplying && this.step === 2) this.step = 3; }, 1200);
+
+        try {
+          const res = await fetch('/api/update/apply', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'X-CSRF-Token': csrfToken,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          clearTimeout(stepTimer1);
+          clearTimeout(stepTimer2);
+
+          const result = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            throw new Error(result.error || ('Server returned HTTP ' + res.status));
+          }
+
+          // Step 4: Restarting
+          this.step = 4;
+
+          // After 1.2s switch to Step 5: Reconnecting
+          setTimeout(() => {
+            this.step = 5;
+            this.pollReconnect();
+          }, 1200);
+
+        } catch (err) {
+          clearTimeout(stepTimer1);
+          clearTimeout(stepTimer2);
+          this.isApplying = false;
+          this.error = err.message || 'Update failed';
+        }
+      },
+
+      pollReconnect() {
+        const startTime = Date.now();
+        const poll = setInterval(async () => {
+          if (Date.now() - startTime > 60000) {
+            clearInterval(poll);
+            this.isApplying = false;
+            this.error = 'Reconnection timed out. Please check server logs or restart manually.';
+            return;
+          }
+
+          try {
+            const res = await fetch('/healthz?_ts=' + Date.now(), { cache: 'no-store' });
+            if (res.ok) {
+              clearInterval(poll);
+              this.step = 6;
+              setTimeout(() => {
+                window.location.reload();
+              }, 800);
+            }
+          } catch (e) {
+            // Service still rebooting
+          }
+        }, 1000);
+      }
+    });
+
+    Alpine.store('updater').check();
+  });
+  </script>
+  {{end}}
 </body>
 </html>
 {{end}}

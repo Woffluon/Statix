@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -30,19 +31,24 @@ type ServerDeps struct {
 	Buffer     *metrics.RingBuffer
 	Collector  *metrics.Collector
 	Logger     *slog.Logger
+	Version    string
+	Updater    UpdateManager
 }
 
 type Server struct {
-	router    *chi.Mux
-	cfg       *config.Config
-	cfgPath   string
-	store     *auth.SessionStore
-	rl        *auth.RateLimiter
-	buf       *metrics.RingBuffer
-	collector *metrics.Collector
-	hub       *WSHub
-	logger    *slog.Logger
-	templates map[string]*template.Template
+	router     *chi.Mux
+	cfg        *config.Config
+	cfgPath    string
+	store      *auth.SessionStore
+	rl         *auth.RateLimiter
+	buf        *metrics.RingBuffer
+	collector  *metrics.Collector
+	hub        *WSHub
+	logger     *slog.Logger
+	templates  map[string]*template.Template
+	version    string
+	updater    UpdateManager
+	isUpdating atomic.Bool
 
 	mu sync.RWMutex
 }
@@ -60,6 +66,11 @@ func New(deps ServerDeps) (*Server, error) {
 
 	hub := NewWSHub(logger)
 
+	version := deps.Version
+	if version == "" {
+		version = "dev"
+	}
+
 	s := &Server{
 		cfg:       deps.Config,
 		cfgPath:   deps.ConfigPath,
@@ -70,6 +81,8 @@ func New(deps ServerDeps) (*Server, error) {
 		hub:       hub,
 		logger:    logger,
 		templates: templates,
+		version:   version,
+		updater:   deps.Updater,
 	}
 
 	s.registerRoutes()
@@ -156,6 +169,10 @@ func (s *Server) registerRoutes() {
 			r.Get("/dashboard", s.handleDashboardGet)
 			r.Get("/ws", s.handleWSGet)
 			r.Post("/logout", auth.CSRF(http.HandlerFunc(s.handleLogoutPost)).ServeHTTP)
+
+			// Self-updater endpoints
+			r.Get("/api/update/check", s.handleUpdateCheck)
+			r.Post("/api/update/apply", auth.CSRF(http.HandlerFunc(s.handleUpdateApply)).ServeHTTP)
 
 			r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 				http.Redirect(w, r, "/dashboard", http.StatusFound)

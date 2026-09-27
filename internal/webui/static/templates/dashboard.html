@@ -1,6 +1,19 @@
-{{define "title"}}Dashboard — Statix{{end}}
+{{define "title"}}Dashboard: Statix{{end}}
 {{define "content"}}
 <div x-data="dashboardApp()" x-init="initWS()">
+
+  <!-- Update Available Alert Banner -->
+  <template x-if="$store.updater && $store.updater.available">
+    <div class="banner banner-warning" style="margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span class="badge-update-dot" style="position: relative; display: inline-block;"></span>
+        <span>A new version of Statix (<strong x-text="$store.updater.displayVersion"></strong>) is available with improvements and fixes.</span>
+      </div>
+      <button type="button" class="btn btn-update" style="padding: 0.35rem 0.85rem; font-size: 0.825rem; white-space: nowrap;" @click="$store.updater.openModal()">
+        Review &amp; Update
+      </button>
+    </div>
+  </template>
 
   <!-- Stat Boxes Overview -->
   <div class="grid-3" style="margin-bottom: 1.5rem;">
